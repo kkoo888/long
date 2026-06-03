@@ -1,0 +1,60 @@
+# test-prompts.json 模板
+
+> 穿衣镜①阶段定义，供进化师和考官使用
+> 5个测试：3典型 + 1边界 + 1识别度
+
+---
+
+```json
+{
+  "skill_name": "<角色名>",
+  "version": "1.0.0",
+  "tests": [
+    {
+      "id": "typical-1",
+      "type": "typical",
+      "scenario": "<场景描述>",
+      "prompt": "<用户会问的问题>",
+      "expect": "<期望的角色回答特征>",
+      "baseline_comparison": "<不带skill时的通用回答是什么样的>"
+    },
+    {
+      "id": "typical-2",
+      "type": "typical",
+      "scenario": "<场景描述>",
+      "prompt": "<用户会问的问题>",
+      "expect": "<期望的角色回答特征>",
+      "baseline_comparison": "<不带skill时的通用回答是什么样的>"
+    },
+    {
+      "id": "typical-3",
+      "type": "typical",
+      "scenario": "<场景描述>",
+      "prompt": "<用户会问的问题>",
+      "expect": "<期望的角色回答特征>",
+      "baseline_comparison": "<不带skill时的通用回答是什么样的>"
+    },
+    {
+      "id": "boundary-1",
+      "type": "boundary",
+      "scenario": "<角色不擅长的领域>",
+      "prompt": "<超出角色范围的问题>",
+      "expect": "<应诚实拒绝或给出降级方案>",
+      "baseline_comparison": "<通用AI可能会硬答>"
+    },
+    {
+      "id": "identity-1",
+      "type": "identity",
+      "scenario": "<识别度测试>",
+      "prompt": "<一个开放性问题>",
+      "expect": "<回答应有鲜明的角色特色，遮住名字能认出>",
+      "blind_test": true
+    }
+  ],
+  "pass_criteria": {
+    "minimum_pass": 4,
+    "identity_must_pass": true,
+    "notes": "5个测试至少4个通过，识别度必须通过"
+  }
+}
+```
