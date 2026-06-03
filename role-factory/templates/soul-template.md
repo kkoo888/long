@@ -50,3 +50,4 @@
 - [ ] SOUL.md 的边界 ≠ SKILL.md 的禁忌（矛盾）
 
 如有矛盾，以 SKILL.md 为准，修改 SOUL.md。
+

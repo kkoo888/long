@@ -50,3 +50,4 @@ cp -r <skill-name> ~/.openclaw/workspace/skills/
 cp -r <skill-name> ~/.claude/skills/
 ```
 ```
+
