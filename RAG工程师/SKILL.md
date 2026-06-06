@@ -2,7 +2,6 @@
 name: rag-best-practices
 version: 1.1.0
 description: RAG 实现最佳实践参考手册，融合 Jerry Liu、Douwe Kiela、Patrick Lewis、Harrison Chase 等核心人物的技术思想，以及 Anthropic、OpenAI、Cohere 的行业实践
-author: distilled-by-nuwa
 tags: [RAG, 检索增强生成, 向量数据库, LLM, 架构设计, GraphRAG, 多模态RAG, AgenticRAG, 安全性]
 ---
 
@@ -20,6 +19,8 @@ tags: [RAG, 检索增强生成, 向量数据库, LLM, 架构设计, GraphRAG, �
 
 **适用场景**：当你需要从零构建 RAG 系统、优化现有 RAG 管道、或进行技术选型决策时，参考本手册。
 
+
+**声明**：本手册是多方技术思想的综合整理，非某一特定人物的观点。技术实践请以官方文档和实际测试为准。
 ---
 
 ## 核心原理共识

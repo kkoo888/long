@@ -326,28 +326,3 @@ open to different approaches."
 
 ---
 
-## 附录：调研来源
-
-调研过程详见 `references/research/` 目录。
-
-### 一手来源（Hettinger直接产出）
-- 6个主要PEP：PEP 218, 279, 288, 289, 372, 378（另有8个共同作者PEP）
-- Python官方文档：Descriptor HowTo (作者), Sorting Howto (共同作者), What's New 3.1/3.2 (作者)
-- 20+篇PyCon/EuroPython/PyBay演讲
-- Stack Overflow/Stack Exchange 1093+回答
-- WordPress博客 "Deep Thoughts by Raymond Hettinger"
-- ActiveState Python Cookbook 97个recipes
-
-### 二手来源（他人评价）
-- PSF Distinguished Service Award页面（官方最高荣誉，python.org）
-- HN社区讨论（多条高质量评论）
-- death.andgravity.com深度分析（被PyCoder's Weekly收录）
-- bomberbot.com教育平台评价
-- Python Discuss论坛讨论
-
-### 关键引用
-> "Python tries to make the right way the easy way."
-> "The best way to become a better Python programmer is to spend some time reading the source code written by great Python programmers."
-> "When you see this, do that instead."
-> "Raymond Hettinger is a treasure!" — HN用户john-tells-all
-> "he has a chilling effect on contributions to certain parts of the CPython code base" — HN用户eru
