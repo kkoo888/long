@@ -1,0 +1,37 @@
+[
+  {
+    "id": 1,
+    "prompt": "我要做一个企业内部知识库问答系统，文档大概2000多份，主要是PDF和Markdown。帮我从零搭建RAG系统，给出技术选型和实现步骤。",
+    "expected": "应覆盖：分块策略选择（Recursive/Sentence Window）、embedding模型选型（中文场景）、向量数据库选型、混合检索方案、评估指标设定，给出分阶段实施路径"
+  },
+  {
+    "id": 2,
+    "prompt": "我们的RAG系统检索Recall@5只有0.55，用户反馈经常搜不到相关内容。文档是混合格式（PDF、Word、网页），已经用512 tokens固定分块存入Chroma。怎么系统性地优化？",
+    "expected": "应覆盖：分块策略优化（从Fixed-Size到Semantic/Document-Based）、混合检索（加入BM25）、Reranking层、Query Rewrite、元数据过滤，并给出优先级排序和预期提升幅度"
+  },
+  {
+    "id": 3,
+    "prompt": "我在做一个法律合同审查RAG系统，需要检索法条和判例。目前用纯向量检索，但法律术语精确匹配效果很差。另外担心检索到的文档可能包含恶意指令影响生成结果。怎么处理？",
+    "expected": "应覆盖：法律领域BM25权重调高（0.3-0.5）、精确术语匹配优化、检索注入攻击防御（prompt隔离、内容过滤、来源白名单）、安全性方案"
+  },
+  {
+    "id": 4,
+    "prompt": "我的RAG系统上线后效果不稳定，有时候回答很准确，有时候完全答非所问。我想系统性地调试和排查问题，应该从哪些环节入手？有没有一套调试流程？",
+    "expected": "应覆盖：RAG调试方法论（组件级vs端到端）、检索质量诊断（Recall/Precision/MRR）、生成质量诊断（Faithfulness）、常见问题定位流程（分块→检索→重排→生成）、可观测性工具（LangSmith/Phoenix/Trulens）、日志追踪方案"
+  },
+  {
+    "id": 5,
+    "prompt": "老板要我出一份RAG系统的准确率报告，用来向客户证明系统质量。怎么科学地测试RAG准确率？评估集怎么建？用什么指标？怎么做到可重复、可对比？",
+    "expected": "应覆盖：评估集构建方法（真实查询采样+LLM合成扩展）、核心指标体系（Context Recall/Precision/Faithfulness/Answer Correctness/MRR/NDCG）、评估工具（RAGAS/DeepEval）、CI/CD质量门、灰度发布策略、评估集版本化管理"
+  },
+  {
+    "id": 6,
+    "prompt": "公司数据安全要求不能用云端embedding API，必须本地部署向量化模型。怎么在本地搭建embedding服务？选什么模型？性能和效果跟OpenAI差距大吗？",
+    "expected": "应覆盖：本地embedding模型选型（bge-large-zh/bge-m3/text2vec/m3e）、本地部署方案（sentence-transformers/TEI/vLLM）、性能对比（维度/速度/质量vs OpenAI）、GPU需求估算、API封装（FastAPI/TEI原生API）、混合检索中的本地BM25部署（jieba分词+Elasticsearch/Milvus内置）"
+  },
+  {
+    "id": 7,
+    "prompt": "我们团队要统一RAG开发规范，不同工程师搭出来的RAG系统质量参差不齐。帮我制定一套RAG架构规范和高效标准，包括代码结构、模块划分、性能指标基线、开发流程等，让新人也能按规范搭出合格的RAG系统。",
+    "expected": "应覆盖：RAG系统模块化架构规范（数据层/索引层/检索层/生成层/评估层）、代码目录结构标准、接口规范（统一API抽象）、性能基线标准（延迟P95<2s、Faithfulness>0.85、Recall@5>0.7）、开发SOP流程（从数据准备到上线的标准化步骤）、技术选型决策树、监控告警规范、文档规范"
+  }
+]

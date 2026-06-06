@@ -1,8 +1,8 @@
 ---
 name: rag-best-practices
-version: 1.1.0
-description: RAG 实现最佳实践参考手册，融合 Jerry Liu、Douwe Kiela、Patrick Lewis、Harrison Chase 等核心人物的技术思想，以及 Anthropic、OpenAI、Cohere 的行业实践
-tags: [RAG, 检索增强生成, 向量数据库, LLM, 架构设计, GraphRAG, 多模态RAG, AgenticRAG, 安全性]
+version: 2.0.0
+description: RAG 实现最佳实践参考手册。当用户提到"搭建RAG"、"RAG优化"、"检索增强"、"向量检索"、"知识库问答"、"文档问答"、"RAG调试"、"RAG评估"、"embedding选型"、"分块策略"时触发。融合 LlamaIndex 五阶段架构（Loading→Indexing→Storing→Querying→Evaluation）、Jerry Liu Sentence Window Retrieval、Anthropic Contextual Retrieval、Harrison Chase LCEL 编排等行业最佳实践。
+tags: [RAG, 检索增强生成, 向量数据库, LLM, 架构设计, GraphRAG, 多模态RAG, AgenticRAG, 安全性, LlamaIndex, 混合检索, Reranking]
 ---
 
 # RAG 实现参考手册
@@ -21,19 +21,268 @@ tags: [RAG, 检索增强生成, 向量数据库, LLM, 架构设计, GraphRAG, �
 
 
 **声明**：本手册是多方技术思想的综合整理，非某一特定人物的观点。技术实践请以官方文档和实际测试为准。
+
 ---
 
-## 核心原理共识
+## 核心工作流（LlamaIndex 五阶段）
+
+> 来源：LlamaIndex 官方文档 "Introduction to RAG" — 五个关键阶段构成所有 RAG 应用的基础
+
+```
+Phase 1 Loading → Phase 2 Indexing → Phase 3 Storing → Phase 4 Querying → Phase 5 Evaluation
+```
+
+### Phase 1: Loading（数据加载）
+
+将原始数据从源头（PDF/网页/数据库/API）转入 Document 和 Node 对象。
+
+| 步骤 | 输入 | 操作 | 输出 | 验收标准 |
+|------|------|------|------|---------|
+| 1.1 数据源盘点 | 业务需求文档 | 遍历所有数据目录，记录格式/数量/更新频率 | `data_sources.yaml` | 覆盖率 100%，无遗漏格式 |
+| 1.2 加载器选型 | 数据源清单 | 按格式匹配 Loader（见下方表） | `loader_config.yaml` | 每种格式有对应 Loader |
+| 1.3 文本清洗 | 原始 Document 列表 | 去噪→去重→格式标准化→长度过滤 | 清洗后 Document[] | 重复率 < 5%，空文档 = 0 |
+| 1.4 质量抽检 | 清洗后 Document | 随机抽 10 份检查内容完整性 | 抽检报告 | 通过率 ≥ 90% |
+
+**LlamaIndex 加载器选型**：
+- PDF → `PDFReader`（简单）或 `LlamaParse`（含表格/图片，效果最佳）
+- Markdown → `MarkdownNodeParser`（保留标题层级结构）
+- 网页 → `BeautifulSoupWebReader` 或 `TrafilaturaReader`
+- 数据库 → `DatabaseReader`
+- 统一入口 → `SimpleDirectoryReader(input_dir, recursive=True)`
+
+**失败处理**：
+- 如果 Loader 解析失败（PDF 扫描件/加密）→ 降级为 OCR（Tesseract/PaddleOCR）
+- 如果去重阈值过高导致误删 → 降低 `dedup_threshold` 从 0.95 到 0.90
+- 如果抽检通过率 < 90% → 回到 1.3 调整清洗参数
+
+**🔴 CHECKPOINT · Phase 1 完成后**：确认数据源清单完整、加载器选型合理。检查以下项：
+- [ ] 是否遗漏了某些文档格式？
+- [ ] 加载器是否能正确解析表格/图片/代码块？
+- [ ] 清洗后文档质量是否可接受（抽样检查 10 份）？
+
+### Phase 2: Indexing（索引构建）
+
+将 Document 切分为 Node（chunk），生成 embedding，构建可检索的索引。
+
+| 步骤 | 输入 | 操作 | 输出 | 验收标准 |
+|------|------|------|------|---------|
+| 2.1 分块策略选择 | 文档类型清单 | 按类型匹配 Chunker（见下方表） | 分块参数配置 | 每种文档类型有对应策略 |
+| 2.2 Embedding 选型 | 语言/场景需求 | 按条件选模型（见选型表） | 模型名+维度+部署方式 | MTEB 中文 ≥ 64 |
+| 2.3 索引构建 | Document[] + 分块参数 + Embedding | 切分→编码→存入向量库 | VectorStoreIndex | chunk 完整性抽检通过 |
+| 2.4 索引验证 | 索引对象 | 抽样 20 个 chunk 检查语义完整性 | 验证报告 | 语义完整率 ≥ 90% |
+
+**LlamaIndex 分块器（Node Parser）速查**：
+
+| 分块器 | 适用场景 | LlamaIndex 类 |
+|--------|---------|--------------|
+| Sentence Window | 精准检索+生成时扩展上下文 | `SentenceWindowNodeParser(window_size=3)` |
+| Hierarchical | 复杂长文档，递归检索 | `HierarchicalNodeParser.from_defaults(chunk_sizes=[2048, 512, 128])` |
+| Markdown | 保留标题层级 | `MarkdownNodeParser()` |
+| Semantic | 语义连贯切分 | `SemanticSplitterNodeParser(embed_model=embed_model)` |
+| Code | 按 AST 切分 | `CodeSplitter(language="python", chunk_lines=40)` |
+| 通用兜底 | 快速原型 | `SentenceSplitter(chunk_size=512, chunk_overlap=50)` |
+
+**🔴 CHECKPOINT · Phase 2 完成后**：确认索引质量。检查以下项：
+- [ ] 抽样 20 个 chunk，检查语义完整性（是否切断了关键信息？）
+- [ ] chunk 数量是否合理？（2000 份文档预估 5-20 万个 chunk）
+- [ ] Embedding 维度和模型是否确认？
+
+### Phase 3: Storing（持久化存储）
+
+将索引、向量、元数据持久化，避免重复构建。
+
+| 存储对象 | 推荐方案 | 说明 |
+|---------|---------|------|
+| 向量索引 | Chroma / Milvus / Qdrant | LlamaIndex 原生支持 `VectorStoreIndex.from_vector_store()` |
+| 文档元数据 | SQLite / PostgreSQL | 记录来源、更新时间、版本 |
+| 嵌入缓存 | Redis / 本地文件 | 避免重复计算 embedding |
+
+**LlamaIndex 持久化示例**：
+```python
+from llama_index.core import StorageContext, load_index_from_storage
+
+# 保存
+index.storage_context.persist(persist_dir="./storage")
+
+# 加载（无需重新索引）
+storage_context = StorageContext.from_defaults(persist_dir="./storage")
+index = load_index_from_storage(storage_context)
+```
+
+### Phase 4: Querying（查询与生成）
+
+核心阶段：接收用户查询 → 检索相关 Node → 后处理 → 生成回答。
+
+| 步骤 | 输入 | 操作 | 输出 | 验收标准 |
+|------|------|------|------|---------|
+| 4.1 查询改写 | 用户原始 Query | HyDE/Multi-Query/Sub-Question | 改写后 Query[] | 改写后检索召回率提升 ≥ 5% |
+| 4.2 混合检索 | Query[] + 索引 | Dense top-30 + BM25 top-30 | 候选 Node[] (60个) | Recall@30 ≥ 0.95 |
+| 4.3 RRF 融合 | 候选 Node[] | Reciprocal Rank Fusion (k=60) | 融合后 Node[] (top-20) | 去重率 ≥ 30% |
+| 4.4 重排序 | 融合后 Node[] | Cross-Encoder 精排 | 精排后 Node[] (top-5) | 排序质量提升 ≥ 10% |
+| 4.5 后处理 | 精排后 Node[] | 过滤低分+元数据替换 | 最终 Node[] (3-5个) | 无关节点 = 0 |
+| 4.6 响应生成 | 最终 Node[] + Query | LLM 生成 + 来源标注 | 回答 + 引用 | Faithfulness ≥ 0.80 |
+
+**LlamaIndex 查询管道（推荐架构）**：
+
+```
+用户 Query
+    ↓
+Query Transform（查询改写）
+    ├─ HyDE（假设文档嵌入）
+    ├─ Multi-Query（多查询扩展）
+    └─ Sub-Question（子问题拆分）
+    ↓
+Retriever（检索器）
+    ├─ VectorRetriever（向量检索 top-K）
+    ├─ BM25Retriever（关键词检索）
+    └─ RouterRetriever（自动路由到最佳检索器）
+    ↓
+Node Postprocessor（后处理）
+    ├─ SimilarityPostprocessor（过滤低分节点）
+    ├─ SentenceTransformerRerank（重排序）
+    ├─ MetadataReplacementPostProcessor（Sentence Window 关键步骤）
+    └─ KeywordNodePostprocessor（关键词过滤）
+    ↓
+Response Synthesizer（响应合成）
+    ├─ compact（紧凑模式，默认）
+    ├─ refine（迭代精炼模式）
+    └─ tree_summarize（树形摘要模式）
+    ↓
+回答 + 来源引用
+```
+
+**🔴 CHECKPOINT · Phase 4 上线前**：确认查询质量。检查以下项：
+- [ ] 用 Golden Set（≥50 条）跑 Recall@5，达标线 ≥ 0.75
+- [ ] Faithfulness ≥ 0.80（RAGAS 评估）
+- [ ] P95 延迟是否可接受（< 8s 为合格，< 2s 为优秀）？
+- [ ] 是否测试了"无答案"场景？模型能否正确拒答？
+
+### Phase 5: Evaluation（评估与迭代）
+
+> 来源：LlamaIndex — "Evaluation provides objective measures of how accurate, faithful and fast your responses are"
+
+**组件级评估**（分别检查每个环节）：
+
+| 评估对象 | 指标 | 工具 |
+|---------|------|------|
+| 检索器 | Recall@K, Precision@K, MRR, NDCG | 自建评估脚本 |
+| 重排序器 | 排序前后 Recall 对比 | A/B 测试 |
+| 生成器 | Faithfulness, Answer Relevancy | RAGAS / DeepEval |
+
+**端到端评估**（最终答案质量）：
+
+| 指标 | 达标线 | 说明 |
+|------|--------|------|
+| Answer Correctness | ≥ 0.70 | 与 ground truth 匹配度 |
+| Faithfulness | ≥ 0.80 | 答案忠于检索内容，无幻觉 |
+| 拒答准确率 | ≥ 0.80 | 对无答案问题正确拒答 |
+| 用户满意度 | ≥ 80% | 人工抽检或用户反馈 |
+
+**🔴 CHECKPOINT · Phase 5 每次迭代后**：确认改进有效。检查以下项：
+- [ ] 核心指标是否有提升？（对比上一版本）
+- [ ] 是否引入了回归？（某些 case 变差了？）
+- [ ] 改动是否值得上线？（提升 > 5% 才值得部署）
+
+---
+
+## Quick Start（30 分钟跑通完整 RAG）
+
+以下代码可直接复制运行，覆盖 Loading→Indexing→Querying 三阶段：
+
+```python
+# === 安装依赖 ===
+# pip install llama-index llama-index-vector-stores-chroma llama-index-embeddings-huggingface
+# pip install llama-index-postprocessor-cohere-rerank rank-bm25
+
+from llama_index.core import (
+    SimpleDirectoryReader, VectorStoreIndex, StorageContext,
+    Settings, load_index_from_storage
+)
+from llama_index.core.node_parser import SentenceWindowNodeParser, MarkdownNodeParser
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.vector_stores.chroma import ChromaVectorStore
+from llama_index.core.postprocessor import MetadataReplacementPostProcessor
+from llama_index.core.retrievers import QueryFusionRetriever, VectorIndexRetriever
+from llama_index.retrievers.bm25 import BM25Retriever
+import chromadb
+
+# === Phase 1: Loading ===
+documents = SimpleDirectoryReader(input_dir="./data", recursive=True).load_data()
+
+# === Phase 2: Indexing ===
+# 分块：Markdown 用 MarkdownNodeParser，其余用 Sentence Window
+md_parser = MarkdownNodeParser()
+window_parser = SentenceWindowNodeParser(window_size=3, window_metadata_key="window")
+
+md_docs = [d for d in documents if d.metadata.get("file_path", "").endswith(".md")]
+other_docs = [d for d in documents if not d.metadata.get("file_path", "").endswith(".md")]
+
+nodes = md_parser.get_nodes_from_documents(md_docs) + window_parser.get_nodes_from_documents(other_docs)
+
+# Embedding
+embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-large-zh-v1.5", device="cuda")
+Settings.embed_model = embed_model
+
+# 向量存储
+chroma_client = chromadb.PersistentClient(path="./chroma_db")
+collection = chroma_client.get_or_create_collection("knowledge_base")
+vector_store = ChromaVectorStore(chroma_collection=collection)
+storage_context = StorageContext.from_defaults(vector_store=vector_store)
+
+# 构建索引
+index = VectorStoreIndex(nodes=nodes, storage_context=storage_context)
+
+# === Phase 3: Querying ===
+# 混合检索：向量 + BM25 + RRF
+vector_retriever = VectorIndexRetriever(index=index, similarity_top_k=20)
+bm25_retriever = BM25Retriever.from_defaults(nodes=nodes, similarity_top_k=20)
+hybrid_retriever = QueryFusionRetriever(
+    retrievers=[vector_retriever, bm25_retriever],
+    similarity_top_k=5,
+    mode="reciprocal_rerank",
+    num_queries=1
+)
+
+# 后处理：Sentence Window 替换 + 相似度过滤
+postprocessors = [
+    MetadataReplacementPostProcessor(target_metadata_key="window"),
+]
+
+# 构建查询引擎
+query_engine = index.as_query_engine(
+    retriever=hybrid_retriever,
+    node_postprocessors=postprocessors,
+    similarity_top_k=5,
+)
+
+# 查询
+response = query_engine.query("公司的年假政策是什么？")
+print(f"回答: {response}")
+print(f"来源: {[n.metadata.get('file_path', 'N/A') for n in response.source_nodes]}")
+
+# === 持久化 ===
+index.storage_context.persist(persist_dir="./storage")
+# 下次加载：index = load_index_from_storage(StorageContext.from_defaults(persist_dir="./storage"))
+```
+
+**30 分钟 Checklist**：
+- [ ] 准备 10+ 份测试文档放入 `./data/` 目录
+- [ ] 复制上面代码到 `rag_quickstart.py`
+- [ ] 运行 `python rag_quickstart.py`
+- [ ] 验证返回结果是否合理
+- [ ] 检查来源引用是否正确
+
+---
 
 ### 1. RAG 的本质定义
 
 > 来源：Patrick Lewis et al., "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks", NeurIPS 2020 (arXiv: 2005.11401)
 
-RAG 的核心思想是将两种"记忆"结合：
+RAG 的原理是将两种"记忆"结合：
 - **参数化记忆（Parametric Memory）**：预训练的语言模型权重（原论文使用 BART，现代实践多用 decoder-only 架构如 GPT-4、Claude、Qwen 等）
 - **非参数化记忆（Non-parametric Memory）**：外部检索系统（原论文使用 DPR + Wikipedia，现代实践多用高质量 embedding 模型 + 向量数据库）
 
-关键创新：将检索到的文档视为**隐变量**，通过边缘化（marginalize）来训练生成模型，而非简单拼接 prompt。这区别于早期"检索结果直接塞进上下文"的做法。
+创新点：将检索到的文档视为**隐变量**，通过边缘化（marginalize）来训练生成模型，而非简单拼接 prompt。这区别于早期"检索结果直接塞进上下文"的做法。
 
 > 注：原论文定义了 RAG-Sequence（全序列用同一文档）和 RAG-Token（每个 token 可选不同文档）两种变体，但现代 RAG 实践中已不再直接使用此分类，更多关注检索质量与生成质量的解耦优化。
 
@@ -121,7 +370,7 @@ RAG 的核心思想是将两种"记忆"结合：
 
 > 来源：Cohere Rerank、BGE-Reranker、ColBERT
 
-**核心思想**：初始召回（top-20~50）→ 重排模型精排 → 取 top-5~10 送入 LLM
+**原理**：初始召回（top-20~50）→ 重排模型精排 → 取 top-5~10 送入 LLM
 
 | 方法 | 原理 | 速度 | 精度 | 代表 |
 |------|------|------|------|------|
@@ -153,7 +402,7 @@ RAG 的核心思想是将两种"记忆"结合：
 
 > 来源：Microsoft Research, "From Local to Global: A Graph RAG Approach to Query-Focused Summarization", 2024
 
-**核心思想**：用知识图谱替代或补充纯向量检索，适合实体关系密集的场景。
+**原理**：用知识图谱替代或补充纯向量检索，适合实体关系密集的场景。
 
 **与传统 RAG 的区别**：
 - 传统 RAG：chunk 是独立的文本片段，丢失实体间关系
@@ -181,7 +430,7 @@ RAG 的核心思想是将两种"记忆"结合：
 
 **背景**：2025 年趋势之一是降低 RAG 的资源门槛，让中小团队和边缘设备也能用上 RAG。
 
-| 方案 | 核心思想 | 模型规模 | 延迟 | 适用场景 |
+| 方案 | 原理 | 模型规模 | 延迟 | 适用场景 |
 |------|---------|---------|------|---------|
 | **MiniRAG** | 轻量级模型 + 简化检索管道 | 1.5B 参数 | < 200ms | 边缘设备、移动端 |
 | **LightRAG** | 简化架构，去掉复杂组件 | 任意 | 低 | 快速原型、资源受限 |
@@ -198,7 +447,7 @@ RAG 的核心思想是将两种"记忆"结合：
 
 > 来源：Chen et al., "UniRAG: Universal Retrieval Augmentation for Multimodal Large Language Models", 2024
 
-**核心思想**：RAG 不仅检索文本，还检索图片、表格、图表等多模态内容。
+**原理**：RAG 不仅检索文本，还检索图片、表格、图表等多模态内容。
 
 **适用场景**：
 - 文档中包含关键信息的图表/表格（财报、技术文档、论文）
@@ -228,11 +477,11 @@ RAG 的核心思想是将两种"记忆"结合：
 | **适合场景** | 纯 RAG 应用、文档问答 | 复杂 LLM 应用（含 RAG、Agent、工具调用） |
 | **学习曲线** | RAG 场景低 / 非 RAG 场景高 | 通用场景中等 |
 
-**建议**：纯 RAG 首选 LlamaIndex；复杂应用（RAG + Agent + 工具）选 LangChain；两者可混合使用。
+**决策**：纯 RAG 首选 LlamaIndex；复杂应用（RAG + Agent + 工具）选 LangChain；两者可混合使用。
 
 ### 2. 检索增强时机之争
 
-| 方案 | 时机 | 代表 | 核心思想 |
+| 方案 | 时机 | 代表 | 原理 |
 |------|------|------|---------|
 | **Pre-Retrieval 增强** | 检索前优化 query | HyDE、Query Rewrite、Multi-Query | 让检索更精准 |
 | **Post-Retrieval 增强** | 检索后优化结果 | Reranking、Contextual Compression | 让结果更干净 |
@@ -306,7 +555,7 @@ RAG 的核心思想是将两种"记忆"结合：
 
 ### 第三代：Modular RAG（模块化组合，2024-至今）
 
-**核心思想**：将 RAG 系统拆解为可重组的模块，像乐高积木一样灵活组合
+**原理**：将 RAG 系统拆解为可重组的模块，像乐高积木一样灵活组合
 
 **典型模块**：
 - `QueryTransform` — 查询变换
@@ -320,7 +569,7 @@ RAG 的核心思想是将两种"记忆"结合：
 
 ### 第四代：Agentic RAG（2024-现在）
 
-**核心思想**：用 Agent 动态决定 RAG 流程，而非固定管道
+**原理**：用 Agent 动态决定 RAG 流程，而非固定管道
 
 **关键能力**：
 - 自主判断是否需要检索
@@ -409,7 +658,7 @@ RAG 的核心思想是将两种"记忆"结合：
 | **CRUD-RAG** | 创建、读取、更新、删除四类 RAG 操作 | 覆盖 RAG 全生命周期 |
 | **RAGBench** | 5 个领域 100K+ 样本 | 大规模英文基准 |
 
-**建议**：先用自建评估集跑 baseline（快速迭代），再用标准基准做横评（对外对标）。
+**执行**：先用自建评估集跑 baseline（快速迭代），再用标准基准做横评（对外对标）。
 
 ---
 
@@ -425,6 +674,11 @@ RAG 的核心思想是将两种"记忆"结合：
 - [ ] 建立基础评估指标（Recall@K、Answer Correctness）
 - [ ] 设定止损线：如果 Naive RAG 在评估集上 Recall@5 < 0.5，重新评估是否应该用 RAG（可能是数据质量问题或场景不适合）
 
+**🔴 CHECKPOINT · 阶段一完成后**：
+- [ ] 端到端管道是否跑通？（输入问题→返回答案+来源）
+- [ ] Recall@5 基线值是多少？（记录到评估报告）
+- [ ] 是否确认了所有数据源的加载器？
+
 ### 阶段二：Advanced RAG（质量优化）（2-4人周，1-2名工程师——需了解 embedding 原理、熟悉至少一个向量数据库）
 
 - [ ] 实现混合检索（Dense + BM25 + RRF）
@@ -434,6 +688,11 @@ RAG 的核心思想是将两种"记忆"结合：
 - [ ] 加入元数据过滤
 - [ ] 建立评估 pipeline（RAGAS 或自定义评估集）
 - [ ] 止损标准：如果混合检索+Reranking 后 Recall@5 仍 < 0.7，排查数据质量问题（分块是否合理、embedding 模型是否匹配语言）；连续优化 2 周无改善，考虑换技术栈或降低 RAG 定位（从通用问答降级为文档搜索）
+
+**🔴 CHECKPOINT · 阶段二完成后**：
+- [ ] Recall@5 是否从阶段一提升了 ≥ 10%？
+- [ ] 混合检索是否比纯向量检索效果好？（A/B 对比）
+- [ ] Reranking 延迟是否可接受（< 200ms）？
 
 ### 阶段三：生产级 RAG（3-6人周，含后端/运维——需具备 Redis/缓存经验、日志系统搭建能力）
 
@@ -453,6 +712,25 @@ RAG 的核心思想是将两种"记忆"结合：
 - [ ] 工具调用集成
 - [ ] 反馈闭环（用户反馈 → 检索优化）
 - [ ] 止损标准：Agentic RAG 的额外复杂度是否带来可衡量的价值提升？如果 Self-RAG 准确率提升 < 5% 而延迟增加 > 50%，不值得上
+
+---
+
+## 🚨 红灯清单（不要做什么）
+
+以下行为会直接导致 RAG 系统质量下降或安全事故，必须避免：
+
+| # | 危险动作 | 后果 | 替代做法 |
+|---|---------|------|---------|
+| 1 | 在检索注入防御前上线 | LLM 被恶意文档操控 | 先实现 prompt 隔离 + 内容过滤再上线 |
+| 2 | 跳过评估直接部署 | 无法发现质量问题，用户一用就崩 | 至少 50 条 Golden Set 跑 baseline |
+| 3 | 用不同 embedding 模型做索引和查询 | 向量空间不一致，检索完全失效 | 索引和查询必须用同一个模型 |
+| 4 | 固定分块无 overlap | 答案被切成两半，检索召回率低 | chunk_overlap ≥ chunk_size 的 10% |
+| 5 | temperature > 0.5 用于 RAG 生成 | 输出不稳定，幻觉增加 | RAG 场景 temperature = 0~0.3 |
+| 6 | 不做 chunk 质量检查就建索引 | 垃圾进垃圾出，后续优化无意义 | 抽样 20 个 chunk 检查语义完整性 |
+| 7 | 生产环境无缓存和降级 | 高峰期延迟飙升或服务不可用 | Redis 缓存 + Reranker 降级策略 |
+| 8 | 评估集用训练数据构造 | 指标虚高，上线翻车 | 从真实日志采样，与训练集严格隔离 |
+| 9 | 硬编码 prompt 模板 | 无法迭代优化，版本不可追溯 | prompt 存文件，纳入 git 管理 |
+| 10 | 不记录查询日志 | 无法定位问题、无法做 bad case 分析 | 每次查询记录 query + chunks + answer + latency |
 
 ---
 
@@ -502,15 +780,20 @@ RAG 的核心思想是将两种"记忆"结合：
 
 ---
 
-## 失败模式与降级策略
+## 失败模式与降级策略（if-then 三段式）
 
-| 环节 | 可能的失败 | 降级方案 |
-|------|-----------|---------|
-| **Embedding 服务** | API 超时/限流 | 本地 embedding 模型兜底（如 bge-m3） |
-| **向量数据库** | 服务不可用 | 退回 BM25 关键词检索 |
-| **Reranker** | 超时/限流 | 退回原始向量排序（RRF 粗排） |
-| **检索质量差** | 返回无关文档 | 加入"无相关文档"判断逻辑，触发 LLM 直接回答或提示用户 |
-| **上下文超长** | 检索内容超出 LLM 上下文窗口 | 减少 top-K 或启用上下文压缩（Contextual Compression） |
+| 环节 | 触发条件 | 一线修复 | 仍失败兜底 |
+|------|---------|---------|-----------|
+| **Embedding 服务** | API 响应 > 3s 或返回 429/500 | 切换到本地 bge-m3 部署 | 退回 BM25 纯关键词检索 |
+| **向量数据库** | 连接超时或服务不可用 | 重启服务 + 检查连接池 | 退回 BM25 关键词检索（需预先同步索引到 ES） |
+| **Reranker** | 响应 > 2s 或返回错误 | 跳过 Rerank，用 RRF 粗排结果 | 退回纯向量检索 top-K |
+| **检索质量差** | Recall@5 < 0.5（评估集检测） | 调整 chunk_size/overlap + 换 embedding 模型 | 降级为关键词搜索 + 人工标注兜底 |
+| **上下文超长** | 拼接后 tokens > 模型窗口 80% | 减少 top-K 从 5 到 3 | 启用 Contextual Compression 压缩每个 chunk |
+| **来源冲突** | 检索到 ≥ 2 个矛盾文档 | 在 prompt 中列出矛盾，让 LLM 标注不确定性 | 返回"资料存在矛盾"并附带双方来源 |
+| **LLM 幻觉** | Faithfulness < 0.7（抽检） | 加强 prompt："只基于参考资料回答，不确定就说不知道" | 切换到更保守的模型（temperature=0） |
+| **缓存失效** | Redis 连接失败 | 降级为直接查询（无缓存） | 本地 LRU 内存缓存（maxsize=1000） |
+| **增量索引失败** | 新文档编码报错 | 跳过失败文档，记录日志继续处理其余 | 全量重建索引（离线任务） |
+| **并发过高** | QPS > 阈值且 P95 > 8s | 启用请求队列 + 限流（token bucket） | 返回"系统繁忙，请稍后重试" |
 | **来源冲突** | 检索到多个矛盾文档 | 在 prompt 中明确列出矛盾，让 LLM 标注不确定性 |
 
 **核心原则**：每个环节都必须有 fallback。RAG 系统的可靠性 = 所有环节可靠性的乘积。
@@ -535,7 +818,7 @@ RAG 的核心思想是将两种"记忆"结合：
 
 ### 来源可信度
 - 不是所有检索到的文档都可信——需要评估来源权威性
-- 建议在 metadata 中标注文档来源、更新时间、可信度等级
+- 在 metadata 中必须标注文档来源、更新时间、可信度等级
 
 ### RAG 安全性悖论
 
@@ -547,7 +830,7 @@ RAG 的核心思想是将两种"记忆"结合：
 - 攻击者在公开文档中嵌入有害指令，RAG 系统检索到后会将其作为"可信上下文"传给 LLM
 - 比直接 prompt injection 更难防御，因为检索内容被系统视为"合法参考"
 
-**防御建议**：
+**防御动作**：
 - 对检索到的内容做安全性扫描（不只扫描用户输入）
 - 在 prompt 中明确标注"以下内容仅为参考，不代表系统指令"
 - 建立来源黑名单机制，屏蔽已知不可信来源
@@ -568,7 +851,7 @@ RAG 系统的成本由以下部分构成：
 | **LLM 生成** | 最终生成的 token 消耗 | 检索 top-5 约增加 2000-5000 input tokens |
 | **基础设施** | 缓存、监控、运维 | Redis 缓存可减少 30-50% 重复查询成本 |
 
-**优化建议**：
+**优化动作**：
 - 高频查询加缓存（Redis / 语义缓存），可节省 30-50% LLM 调用成本
 - 分层检索：先 BM25 粗筛（免费），再向量精排，减少 embedding 调用量
 - Reranking 只对 top-20~50 做，不要对全量文档重排
