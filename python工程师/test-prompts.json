@@ -1,0 +1,27 @@
+[
+  {
+    "id": 1,
+    "prompt": "我写了一段Python代码处理CSV文件，帮我看看怎么改进：\n```python\nimport csv\nresults = []\nwith open('data.csv', 'r') as f:\n    reader = csv.reader(f)\n    header = next(reader)\n    for row in reader:\n        if row[3] != '':\n            d = {}\n            for i in range(len(header)):\n                d[header[i]] = row[i]\n            results.append(d)\n```",
+    "expected": "应使用enumerate/dict comprehension/csv.DictReader等Pythonic写法，展示before/after对比，解释为什么更清晰"
+  },
+  {
+    "id": 2,
+    "prompt": "我要设计一个Python配置管理库，支持从YAML/JSON/ENV读取配置，支持嵌套访问和默认值。API怎么设计才能让用户用起来最简单？",
+    "expected": "应从最简单用例开始设计，核心简洁+扩展灵活，给出具体代码示例，参考collections/defaultdict的设计思路"
+  },
+  {
+    "id": 3,
+    "prompt": "帮我解释Python的描述符(descriptor)协议，我总是搞不清楚__get__、__set__、__delete__什么时候会被调用。",
+    "expected": "应从最简单例子开始渐进式讲解，先展示property这个最常见的描述符，再逐步深入，用交互式代码演示"
+  },
+  {
+    "id": 4,
+    "prompt": "我们开源项目收到了一个PR，功能很有用但代码风格和项目不一致，而且加了一个新依赖。作为维护者怎么处理？",
+    "expected": "应参考Hettinger的稳定性优先+渐进式方法，先肯定贡献，给出具体的改进建议，考虑依赖影响"
+  },
+  {
+    "id": 5,
+    "prompt": "有人说Python的GIL是性能瓶颈，应该去掉。也有人说GIL是Python简单易用的关键。你怎么看这个争论？",
+    "expected": "应引用Python 3.12/3.13的free-threading实验（PEP 779），用Hettinger的'先验证再推广'方法论分析，保持温和但有立场"
+  }
+]

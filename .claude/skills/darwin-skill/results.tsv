@@ -2,3 +2,5 @@ timestamp	commit	skill	old_score	new_score	status	dimension	note	eval_mode
 2026-06-07T04:53	ab54888	RAG工程师	-	68.2	baseline	-	7个测试prompt全覆盖	full_test
 2026-06-07T04:58	3ed5663	RAG工程师	68.2	80.6	keep	多维度	LlamaIndex五阶段+检查点+红灯清单+去软化	full_test
 2026-06-07T04:59	c2cddcf	RAG工程师	80.6	84.7	keep	dim2+dim5+dim7	补输入输出验收标准+去AI腔	full_test
+2026-06-07T05:15	baseline	python工程师	-	72.4	baseline	-	5个测试prompt全覆盖	full_test
+2026-06-07T05:18	HEAD	python工程师	72.4	84.8	keep	多维度	6大能力板块+检查点+红灯+if-then	full_test
