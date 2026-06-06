@@ -261,6 +261,28 @@ The CNCF maturity rating concerns me. It means we haven't done enough to make th
 
 ---
 
+### 模型 6：协议层思维（MCP / A2A）
+
+**核心洞察**：2025 年 Agent 生态的两大协议标准重塑了工具集成和多 Agent 协作的方式。MCP 解决"Agent 怎么连接外部工具"，A2A 解决"Agent 之间怎么对话"——两者互补，构成 Agent 基础设施的协议层。
+
+**MCP（Model Context Protocol）**：
+- Anthropic 于 2024.11 发布，2025.03 OpenAI 在 Agents SDK 中全面采纳，2025 年底捐赠 Linux Foundation
+- 核心：统一 Agent ↔ 工具/数据源的集成协议，替代各家私有 function calling 格式
+- 架构：Client-Server 模型，MCP Server 暴露 Tools/Resources/Prompts，MCP Client（Agent）调用
+- 生态：5000+ MCP Server 已存在，AWS/Block/GitHub 等企业生产环境使用
+- Chase 的判断：「MCP 是 Harness 层的一部分——它定义了工具的发现和调用协议，这正是 Harness 的职责」
+
+**A2A（Agent-to-Agent Protocol）**：
+- Google 于 2025.04 发布，获 Atlassian/Salesforce/SAP/LangChain 等 50+ 厂商支持，已捐赠 Linux Foundation
+- 核心：定义 Agent 之间的通信标准——Agent Card（能力名片）→ Task（任务分发）→ Artifact（结果交付）
+- 解决的问题：不同框架（LangGraph/CrewAI/AutoGen）构建的 Agent 无法互操作
+- 与 MCP 的关系：MCP 管 Agent↔Tool，A2A 管 Agent↔Agent，两者是互补而非竞争
+
+**核心要义**：设计 Agent 系统时，工具集成用 MCP（不造私有协议），多 Agent 协作用 A2A（不造私有消息格式）。协议层是 Harness 的"通用图灵机"——好的协议支持无限多的具体实现。
+
+**局限**：协议仍在快速演进中，MCP 的安全模型（权限控制、沙箱）和 A2A 的任务调度（优先级、超时、重试）尚未完全成熟。生产环境采用需关注规范更新。
+
+
 ## 处世启发式
 
 ### 启发式 1："如果重新设计会少做 70% 的抽象"
@@ -431,7 +453,8 @@ LLM 应用层（RAG、Agent、Tool Use、Function Calling）
 - **Jerry Liu（LlamaIndex）**：互补关系，LangGraph 管编排，LlamaIndex 管数据接入。两人多次联合演讲，代表了 Agent 生态的两个维度
 - **吴恩达**：多次对谈，推动 Agent 工程化教育。吴恩达的「AI Agent」课程大量使用 LangChain
 - **Sam Altman / OpenAI**：竞合关系，OpenAI Agents SDK 直接竞争。Chase 的应对策略是「做 Harness 层，不和模型层竞争」
-- **Anthropic（Dario Amodei）**：Claude Code / Computer Use 与 LangChain 生态交叉。Chase 对 Anthropic 的 MCP 协议持开放态度
+- **Anthropic（Dario Amodei）**：Claude Code / Computer Use 与 LangChain 生态交叉。Chase 对 Anthropic 的 MCP 协议持开放态度。MCP（2024.11发布）已成为 Agent 工具集成的事实标准——2025.03 OpenAI 全面采纳，年底捐赠 Linux Foundation，5000+ Server 生态。Chase 将 MCP 视为 Harness 层的协议基础设施
+- **Google DeepMind**：2025.04 发布 A2A 协议，定义了 Agent↔Agent 通信标准。与 MCP 互补——MCP 管工具集成，A2A 管 Agent 互操作。LangChain 是首批支持者之一
 - **Sequoia Capital（Sonya Huang）**：A 轮投资人，多次联合播客，代表了资本对 Agent 赛道的判断
 
 ### 后世影响
@@ -454,6 +477,8 @@ LLM 应用层（RAG、Agent、Tool Use、Function Calling）
 | Orchestration Layer | Agent 的编排层 | 决定 Tool 调用顺序的层 | 误以为就是 workflow |
 | Interrupt/Resume | Agent 暂停和恢复机制 | 长任务可以暂停等结果再继续 | 误以为是异步回调 |
 | Tracing | Agent 执行路径的记录系统 | AI 应用的"黑匣子" | 误以为就是 logging |
+| MCP (Model Context Protocol) | Agent ↔ 工具/数据源的统一集成协议 | Agent 的"USB 接口"——即插即用 | 误以为是另一个 function calling 格式 |
+| A2A (Agent-to-Agent Protocol) | Agent ↔ Agent 的通信标准 | Agent 之间的"HTTP 协议" | 误以为是 MCP 的竞争者（实为互补） |
 
 ---
 

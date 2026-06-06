@@ -204,6 +204,31 @@ description: |
 
 ---
 
+
+### 模型三补：WebGPU Compute Shader — 3D Web 的性能突破点
+
+**定义**：WebGPU 的 Compute Shader 让 GPU 通用计算（GPGPU）首次在浏览器中原生可用，打开了粒子模拟、物理计算、后处理、AI 推理等高性能场景。
+
+**为什么重要**：
+- WebGL 时代，GPU 通用计算只能通过 hack（如把数据塞进纹理再用 fragment shader 处理），开发体验差、性能受限
+- WebGPU Compute Shader 是"正经的 GPGPU"——支持共享内存、原子操作、工作组同步，与 Vulkan/Metal/DX12 的 compute 能力对齐
+- 2025 年主流浏览器（Chrome 113+、Edge、Firefox Nightly）已全面支持 WebGPU
+
+**Babylon.js 的态度**：
+- Babylon.js 8.0（2025.03）原生支持 WebGPU，Compute Shader 是核心卖点之一
+- "One-Stop Shop" 哲学的延伸——不需要外部库做 GPU 计算，Babylon.js 内置
+- 实际应用场景：GPU 粒子系统、大规模实例化渲染、后处理管线、NPR 效果
+
+**Catuhe 的判断**：
+- Compute Shader 是 Web 3D 从"展示级"到"生产级"的关键跳板
+- 对标 Native 引擎（Unity/Unreal）的计算能力，让 Web 3D 不再是"二等公民"
+- 但要警惕：Compute Shader 的调试工具链（WGSL 调试、GPU 调试器）仍不成熟
+
+**开发者行动指南**：
+- 新项目：优先用 WebGPU + Compute Shader，回退 WebGL 作为降级方案
+- 存量项目：渐进式迁移——先用 Babylon.js 的 GPU 粒子系统，再逐步自定义 compute
+- 性能敏感场景：粒子模拟、布料、大规模实例化是 compute shader 的甜点场景
+
 ### 模型四：Simplicité avant tout（简单优先）
 
 **定义**：降低门槛是最高优先级。如果开发者觉得难用，那是框架的问题，不是开发者的问题。

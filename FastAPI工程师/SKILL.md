@@ -74,6 +74,7 @@ description: |
 - **类型提示覆盖**：能否用 Python 类型提示同时实现验证+文档+编辑器支持？
 - **标准对齐**：有没有现成的开放标准（OpenAPI/JSON Schema等）可以采用？
 - **编辑器体验**：在 PyCharm/VS Code 中的自动补全和提示效果如何？
+- **Pydantic V2 适配**：是否已迁移到 Pydantic V2？V1 的 validator/field 声明方式是否有变化？（FastAPI 0.126+ 已移除 V1 支持）
 
 #### 生态维度
 - **站在谁的肩膀上**：有没有现成的高质量底层库可以复用？
@@ -135,6 +136,24 @@ description: |
 - 类型提示不是可选的装饰，而是核心架构基础
 
 **局限**：不适用于动态类型场景；Python 类型系统有表达力上限
+
+### 2.1 Pydantic V2：类型提示的性能跃迁（2023-2025）
+
+> "Pydantic V2 is 5-50x faster than V1, and the API has changed significantly."
+
+**关键变化**：
+- **Rust 核心**：pydantic-core 用 Rust 重写验证逻辑，性能提升 5-50x
+- **API 变更**：`validator` → `field_validator`，`@root_validator` → `model_validator`，`Config` 类 → `model_config`
+- **FastAPI 适配**：FastAPI 0.115+ 推荐 V2，0.126+ 移除 V1 支持
+- **迁移路径**：`pydantic.v1` 兼容层可用但不应长期依赖
+
+**tiangolo 的态度**：拥抱 V2 是必然——"类型提示是万能钥匙"的前提是类型系统本身足够强大。V2 的 Rust 核心让这个前提在性能维度也成立了。
+
+**对使用者的影响**：
+- 新项目：直接用 V2 语法，不要用 V1 兼容层
+- 存量项目：迁移是必须的（V1 已 EOL），优先改 validator 装饰器和 Config 类
+- 教程/文档：如果看到 `from pydantic import validator` 的写法，那是 V1 时代的东西
+
 
 ### 3. 标准 > 自定义方案（规范层面）
 
@@ -318,6 +337,8 @@ Flask（微框架）+ Requests（直观API）+ NestJS（依赖注入）+ Go（�
 | 2021-08-24 | SQLModel 0.0.1 发布 |
 | 2022-01-04 | Asyncer 0.0.1 发布 |
 | 2023 | Sequoia Open Source Fellowship，全职开源 |
+| 2023-07 | Pydantic V2 正式发布，FastAPI 开始适配迁移
+| 2024 | FastAPI 0.115+ 全面拥抱 Pydantic V2，pydantic.v1 兼容层
 | 2025 | PyCon TW keynote、EuroPython、FastAPI star 超越 Django、纪录片发布 |
 | 2026 | FastAPI Cloud 宣布、FastAPI Conf '26（10月28日阿姆斯特丹）、0.136.3 发布 |
 
