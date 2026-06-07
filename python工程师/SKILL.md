@@ -9,7 +9,7 @@ description: |
   当用户提到「用Hettinger的视角」「Raymond会怎么看」「hettinger模式」时使用。
   即使用户只是说「这段代码pythonic吗」「怎么写出好代码」「API怎么设计」也可触发。
   覆盖能力：架构决策、高级Python（协程/元编程/并发）、极致技巧、API设计、简洁美学、工程哲学。
-tags: [Python, Raymond Hettinger, Pythonic, 代码美学, API设计, 架构决策, 协程, 元编程, 并发, 工程哲学, 简洁美学]
+tags: [Python, Raymond Hettinger, Pythonic, 代码美学, API设计, 架构决策, 协程, 元编程, 并发, 工程哲学, 简洁美学, P3C规范, 错误码, 日志规约, 异常处理, 安全规约]
 ---
 
 # Raymond Hettinger · 思维操作系统
@@ -344,6 +344,394 @@ open to different approaches."
 
 ---
 
+
+## P3C 规范融合（Python 工程化编码规范）
+
+> **设计理念**：P3C 是阿里巴巴数万工程师沉淀的企业级编码规范。以下将 P3C 精华适配到 Python 生态，分为【强制】【推荐】【参考】三个等级。
+
+### 一、Python 错误码规范
+
+#### 【强制】错误码设计原则：快速溯源 + 机器可读
+
+```python
+# errors.py — P3C 风格 Python 错误码
+from enum import Enum
+
+class ErrorSource(str, Enum):
+    """错误来源（P3C: A=用户输入, B=程序逻辑, C=外部依赖）"""
+    USER = "A"       # 用户输入错误：参数校验失败、格式不对
+    PROGRAM = "B"    # 程序逻辑错误：业务异常、状态不一致
+    EXTERNAL = "C"   # 外部依赖错误：文件不存在、网络超时、数据库失败
+
+class ErrorCode(str, Enum):
+    """
+    错误码格式：来源字母 + 4位数字
+    P3C 规则：错误码 = 谁的错 + 错在哪
+    """
+    # === A 用户输入错误 ===
+    A0001 = "A0001-参数类型错误"
+    A0002 = "A0002-参数值超出范围"
+    A0003 = "A0003-缺少必填参数"
+    A0004 = "A0004-文件格式不支持"
+    A0005 = "A0005-编码格式错误"
+
+    # === B 程序逻辑错误 ===
+    B0001 = "B0001-业务逻辑异常"
+    B0002 = "B0002-状态不一致"
+    B0003 = "B0003-配置缺失"
+    B0004 = "B0004-权限校验失败"
+
+    # === C 外部依赖错误 ===
+    C0001 = "C0001-文件操作失败"
+    C0002 = "C0002-网络请求失败"
+    C0003 = "C0003-数据库操作失败"
+    C0004 = "C0004-第三方API调用失败"
+```
+
+#### 【强制】统一异常基类 + 错误码绑定
+
+```python
+class AppError(Exception):
+    """统一异常基类"""
+    def __init__(self, code: ErrorCode, message: str, details: dict = None):
+        self.code = code.value
+        self.message = message
+        self.details = details or {}
+        super().__init__(message)
+
+    def __str__(self):
+        return f"[{self.code}] {self.message}"
+
+# 使用示例
+def read_csv(path: str) -> list[dict]:
+    if not path.endswith('.csv'):
+        raise AppError(ErrorCode.A0004, f"不支持的文件格式: {path}", {"path": path})
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return list(csv.DictReader(f))
+    except FileNotFoundError:
+        raise AppError(ErrorCode.C0001, f"文件不存在: {path}", {"path": path})
+    except UnicodeDecodeError:
+        raise AppError(ErrorCode.A0005, f"文件编码错误: {path}", {"path": path})
+```
+
+### 二、Python 异常处理规范
+
+#### 【强制】不要用异常做流程控制
+
+```python
+# ❌ 反例：用异常判断文件是否存在
+try:
+    f = open('config.json')
+    config = json.load(f)
+except FileNotFoundError:
+    config = {}  # 用异常做流程控制
+
+# ✅ 正例：用条件判断
+if os.path.exists('config.json'):
+    with open('config.json') as f:
+        config = json.load(f)
+else:
+    config = {}
+```
+
+#### 【强制】精准捕获，禁止裸 except
+
+```python
+# ❌ 反例：裸 except 吞掉所有异常（包括 KeyboardInterrupt）
+try:
+    process_data(data)
+except:
+    pass  # 吞掉了！
+
+# ❌ 反例：捕获 Exception 但不处理
+try:
+    process_data(data)
+except Exception as e:
+    pass  # 同样吞掉了
+
+# ✅ 正例：精准捕获 + 处理
+try:
+    process_data(data)
+except ValueError as e:
+    logger.warn("数据格式错误: %s", str(e))
+    return {"error": "数据格式不正确，请检查输入"}
+except FileNotFoundError as e:
+    logger.error("文件不存在: %s", str(e), exc_info=True)
+    raise AppError(ErrorCode.C0001, "数据文件不存在")
+```
+
+#### 【强制】捕获异常必须处理，不要吞掉
+
+```python
+# ❌ 反例：捕获了但什么都不做
+try:
+    send_notification(user_id)
+except Exception:
+    pass  # 通知没发出去，没人知道
+
+# ✅ 正例：至少记录日志
+try:
+    send_notification(user_id)
+except NotificationError as e:
+    logger.warn("通知发送失败: user_id=%s, error=%s", user_id, str(e))
+    # 不影响主流程，但日志记录了
+```
+
+#### 【推荐】用 contextlib.suppress 简化"忽略特定异常"
+
+```python
+# ❌ 啰嗦
+try:
+    os.remove('temp.txt')
+except FileNotFoundError:
+    pass
+
+# ✅ 优雅：明确表达"这个异常可以忽略"
+with contextlib.suppress(FileNotFoundError):
+    os.remove('temp.txt')
+```
+
+### 三、Python 日志规约
+
+#### 【强制】统一日志框架，禁止 print
+
+```python
+# ❌ 反例
+print(f"Processing {filename}")
+print(f"Error: {e}")
+
+# ✅ 正例：结构化日志
+import logging
+
+logger = logging.getLogger(__name__)
+
+logger.info("开始处理文件: filename=%s", filename)
+logger.error("处理失败: filename=%s, error=%s", filename, str(e), exc_info=True)
+```
+
+#### 【强制】日志使用占位符，不要字符串拼接
+
+```python
+# ❌ 反例：f-string 拼接（有性能损耗）
+logger.info(f"用户{user_id}处理了{count}条数据，耗时{elapsed}秒")
+
+# ✅ 正例：占位符（延迟求值，性能更好）
+logger.info("数据处理完成: user_id=%s, count=%d, elapsed=%.2fs", user_id, count, elapsed)
+```
+
+#### 【强制】异常日志必须包含现场信息 + 堆栈
+
+```python
+# ❌ 反例：只记错误消息，不记堆栈
+logger.error(f"处理失败: {e}")  # 无法定位根因
+
+# ✅ 正例：现场信息 + 堆栈
+logger.error(
+    "处理失败: filename=%s, row_count=%d, error=%s",
+    filename, len(data), str(e),
+    exc_info=True  # 自动附加完整堆栈
+)
+```
+
+#### 【强制】敏感信息不得入日志
+
+```python
+# ❌ 反例
+logger.info(f"连接数据库: url={database_url}")  # URL 可能包含密码
+
+# ✅ 正例：脱敏
+logger.info("连接数据库: host=%s, port=%s, db=%s", host, port, database_name)
+```
+
+#### 【强制】生产环境日志级别
+
+| 级别 | 用途 | 生产环境 |
+|------|------|---------|
+| DEBUG | 详细调试信息、变量值 | ❌ 禁止 |
+| INFO | 正常业务事件 | ✅ 有选择 |
+| WARN | 可恢复的异常、降级 | ✅ 允许 |
+| ERROR | 不可恢复的错误 | ✅ 允许 |
+
+### 四、Python 安全规约
+
+#### 【强制】禁止 eval/exec 处理用户输入
+
+```python
+# ❌ 反例：远程代码执行风险
+user_input = input("请输入表达式: ")
+result = eval(user_input)  # 用户可以输入 __import__('os').system('rm -rf /')
+
+# ✅ 正例：用安全的解析器
+import ast
+result = ast.literal_eval(user_input)  # 只解析字面量，不执行代码
+```
+
+#### 【强制】SQL 参数化查询，禁止拼接
+
+```python
+# ❌ 反例：SQL 注入
+query = f"SELECT * FROM users WHERE name = '{name}'"
+
+# ✅ 正例：参数化查询
+cursor.execute("SELECT * FROM users WHERE name = ?", (name,))
+```
+
+#### 【强制】文件路径必须校验，防止路径穿越
+
+```python
+# ❌ 反例：用户可以传 "../../../etc/passwd"
+def read_file(filename: str):
+    return open(filename).read()
+
+# ✅ 正例：限制在安全目录内
+import os
+
+SAFE_DIR = "/data/uploads"
+
+def read_file(filename: str) -> str:
+    full_path = os.path.realpath(os.path.join(SAFE_DIR, filename))
+    if not full_path.startswith(SAFE_DIR):
+        raise AppError(ErrorCode.A0002, "非法文件路径")
+    with open(full_path) as f:
+        return f.read()
+```
+
+#### 【强制】可变对象不要做默认参数
+
+```python
+# ❌ 反例：默认参数在函数定义时求值，所有调用共享同一个对象
+def add_item(item, items=[]):
+    items.append(item)
+    return items
+
+add_item(1)  # [1]
+add_item(2)  # [1, 2]  ← 不是 [2]！
+
+# ✅ 正例：用 None + 函数内初始化
+def add_item(item, items=None):
+    if items is None:
+        items = []
+    items.append(item)
+    return items
+```
+
+### 五、Python 注释规约
+
+#### 【强制】模块、类、公共函数必须有文档字符串
+
+```python
+# ❌ 反例
+def process(data):
+    ...
+
+# ✅ 正例：Google 风格 docstring
+def process(data: list[dict], batch_size: int = 100) -> dict:
+    """
+    处理数据并返回统计结果。
+
+    Args:
+        data: 待处理的数据列表，每个元素为字典
+        batch_size: 批处理大小，默认 100
+
+    Returns:
+        包含 count、success、failed 的统计字典
+
+    Raises:
+        AppError(A0001): data 不是列表类型
+        AppError(A0002): batch_size 小于 1
+
+    Examples:
+        >>> process([{"name": "Alice"}, {"name": "Bob"}])
+        {'count': 2, 'success': 2, 'failed': 0}
+    """
+    ...
+```
+
+#### 【推荐】注释解释"为什么"，不要重复"做什么"
+
+```python
+# ❌ 噪音注释：重复代码说什么
+i += 1  # increment i by 1
+
+# ✅ 信号注释：解释为什么
+i += 1  # 跳过 CSV 表头行
+```
+
+#### 【推荐】TODO 格式统一
+
+```python
+# TODO(zhangsan, 2026-06-30): 支持 Excel 格式导入
+# TODO(lisi): 优化大文件处理性能，目标 10MB/s
+# FIXME: 编码检测偶发失败，需要增加 fallback
+```
+
+### 六、Python 编码规范速查
+
+#### 【强制】命名规范
+
+| 类型 | 规范 | 示例 |
+|------|------|------|
+| 模块文件 | snake_case | `data_processor.py` |
+| 类名 | PascalCase | `DataProcessor`、`HTTPRequest` |
+| 函数/方法 | snake_case | `process_data()`、`get_user_by_id()` |
+| 常量 | UPPER_SNAKE_CASE | `MAX_RETRY_COUNT`、`DEFAULT_TIMEOUT` |
+| 私有前导 | `_` 前缀 | `_validate_input()`、`_cache` |
+| 类型变量 | PascalCase | `T`、`TypeVar("T")` |
+
+#### 【强制】导入顺序
+
+```python
+# 1. 标准库
+import os
+import csv
+from datetime import datetime
+from typing import Optional
+
+# 2. 第三方库
+import requests
+from pydantic import BaseModel
+
+# 3. 本项目内部
+from app.config import settings
+from app.errors import AppError, ErrorCode
+from app.utils.logger import logger
+```
+
+#### 【推荐】类型注解（Python 3.10+）
+
+```python
+# ✅ 现代写法
+def process(data: list[dict], timeout: float | None = None) -> dict:
+    ...
+
+# ✅ 类型别名（Python 3.12+）
+type Vector = list[float]
+type Matrix = list[Vector]
+```
+
+### 七、P3C 合规检查清单
+
+🔴 **CHECKPOINT · P3C Python 合规检查**
+
+| # | 检查项 | 等级 | 标准 |
+|---|--------|------|------|
+| 1 | 错误码符合 A/B/C 分类 | 【强制】 | 所有 AppError 使用 ErrorCode |
+| 2 | 异常不做流程控制 | 【强制】 | 无 try-catch 包裹条件判断 |
+| 3 | 禁止裸 except | 【强制】 | 无 `except:` 或 `except Exception: pass` |
+| 4 | 日志用占位符不拼接 | 【强制】 | `logger.info("x=%s", x)` |
+| 5 | 生产环境无 debug 日志 | 【强制】 | 日志级别 >= INFO |
+| 6 | 异常日志带堆栈 | 【强制】 | `exc_info=True` |
+| 7 | 敏感信息不入日志 | 【强制】 | 无密码/token/密钥 |
+| 8 | 禁止 eval/exec 处理用户输入 | 【强制】 | 用 `ast.literal_eval()` |
+| 9 | 可变对象不做默认参数 | 【强制】 | 用 `None` + 函数内初始化 |
+| 10 | SQL 参数化查询 | 【强制】 | 无字符串拼接 SQL |
+| 11 | 公共函数有 docstring | 【推荐】 | 含 Args/Returns/Raises/Examples |
+| 12 | 注释解释"为什么" | 【推荐】 | 无噪音注释 |
+
+🛑 **STOP · 任一【强制】项未通过 → 修复后再提交**
+
+---
 
 ## 架构决策框架
 
