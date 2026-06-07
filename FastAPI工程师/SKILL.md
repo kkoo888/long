@@ -2,10 +2,10 @@
 name: tiangolo-perspective
 description: |
   蒸馏自 Sebastián Ramírez (tiangolo) — FastAPI 创建者的思维框架。
-  5个心智模型、7条决策启发式、表达DNA、3对核心张力。
+  5个心智模型、7条决策启发式、表达DNA、3对核心张力 + 编码规范体系。
   触发词：「tiangolo视角」「FastAPI设计哲学」「tiangolo怎么做决策」「像tiangolo一样思考」
-  其他触发词：「Pydantic模型」「OpenAPI文档」「Python类型提示」「开发者体验」「Typer」「SQLModel」「Asyncer」
-  适用场景：API设计、框架/工具创建、开发者体验优化、开源项目管理、技术文档写作。
+  其他触发词：「Pydantic模型」「OpenAPI文档」「Python类型提示」「开发者体验」「Typer」「SQLModel」「Asyncer」「FastAPI编码规范」「统一输入输出」「简洁编码」「规范格式」「高效编码」「项目结构优化」「性能优化」「路由优化」「依赖注入」「N+1查询」「缓存策略」「并发优化」
+  适用场景：API设计、框架/工具创建、开发者体验优化、开源项目管理、技术文档写作、FastAPI项目编码规范制定、项目结构重构、性能调优、路由架构设计。
 ---
 
 # tiangolo · 思维框架
@@ -35,6 +35,522 @@ description: |
 | 技术选型争论 | 心智模型 2-3 + 核心信念 | 模型3 + 反模式 |
 | 开源项目管理 | 决策启发式 6-7 + 价值观 | 启发式6 |
 | 快速判断"tiangolo会怎么做" | 核心信念 + 反模式 | 核心价值观 |
+
+## FastAPI 编码规范体系
+
+> **核心理念**：代码是写给人看的，顺便让机器执行。规范不是束缚，是团队协作的通用语言。
+
+### 一、规范格式书写
+
+#### 文件结构规范
+
+每个 FastAPI 项目必须遵循以下目录结构：
+
+```
+project/
+├── app/
+│   ├── __init__.py
+│   ├── main.py              # 入口：只做 app 创建 + router 挂载
+│   ├── config.py             # 配置：用 pydantic-settings 管理
+│   ├── dependencies.py       # 公共依赖注入
+│   ├── routers/              # 路由层：只负责路径 + 参数接收 + 调用 service
+│   │   ├── __init__.py
+│   │   ├── users.py
+│   │   └── orders.py
+│   ├── schemas/              # 数据层：所有 Pydantic 模型
+│   │   ├── __init__.py
+│   │   ├── user.py
+│   │   └── order.py
+│   ├── services/             # 业务层：纯业务逻辑，不依赖 HTTP
+│   │   ├── __init__.py
+│   │   ├── user_service.py
+│   │   └── order_service.py
+│   ├── models/               # ORM 层：SQLAlchemy 模型
+│   │   ├── __init__.py
+│   │   └── user.py
+│   └── utils/                # 工具函数
+│       ├── __init__.py
+│       └── security.py
+├── tests/
+├── alembic/                  # 数据库迁移
+├── pyproject.toml
+└── README.md
+```
+
+#### 命名规范
+
+| 类型 | 规范 | 示例 |
+|------|------|------|
+| 文件名 | snake_case | `user_service.py`、`order_schema.py` |
+| 类名 | PascalCase | `UserCreate`、`OrderResponse` |
+| 函数/方法 | snake_case | `get_user_by_id()`、`create_order()` |
+| 常量 | UPPER_SNAKE_CASE | `MAX_PAGE_SIZE`、`DEFAULT_TIMEOUT` |
+| 私有前导 | `_` 前缀 | `_validate_email()`、`_hash_password()` |
+| 路由路径 | kebab-case（URL） | `/user-profiles`、`/order-items` |
+| Schema 后缀 | 动作语义 | `UserCreate`、`UserUpdate`、`UserResponse` |
+
+#### 导入顺序（强制）
+
+```python
+# 1. 标准库
+import asyncio
+from datetime import datetime
+from typing import Optional
+
+# 2. 第三方库
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
+# 3. 本项目内部
+from app.config import settings
+from app.dependencies import get_db
+from app.schemas.user import UserCreate, UserResponse
+from app.services import user_service
+```
+
+### 二、统一输入输出规范
+
+#### 统一响应格式
+
+**所有 API 必须使用统一响应格式**，通过 `response_model` 控制：
+
+```python
+# schemas/common.py — 统一响应包装器
+from typing import Generic, TypeVar
+from pydantic import BaseModel
+
+T = TypeVar("T")
+
+class ApiResponse(BaseModel, Generic[T]):
+    """统一响应格式"""
+    code: int = 0
+    message: str = "success"
+    data: T | None = None
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    """分页响应格式"""
+    code: int = 0
+    message: str = "success"
+    data: list[T] = []
+    total: int = 0
+    page: int = 1
+    page_size: int = 20
+```
+
+#### 路由层标准写法
+
+```python
+# ❌ 错误：手动包装响应
+@router.get("/users/{user_id}")
+def get_user(user_id: int):
+    user = db.get(user_id)
+    return {"code": 0, "msg": "ok", "data": user}  # 手动包装，不规范
+
+# ✅ 正确：用 response_model 自动控制输出
+@router.get(
+    "/users/{user_id}",
+    response_model=ApiResponse[UserResponse],
+    summary="获取用户详情",
+    description="根据用户ID获取用户详细信息",
+    responses={
+        404: {"description": "用户不存在"},
+        422: {"description": "参数验证失败"},
+    },
+)
+async def get_user(
+    user_id: int = Path(..., gt=0, description="用户ID"),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await user_service.get_user_by_id(db, user_id)
+    return ApiResponse(data=user)
+```
+
+#### 请求参数规范
+
+| 参数位置 | 使用场景 | 写法 |
+|---------|---------|------|
+| Path | 资源标识 | `user_id: int = Path(..., gt=0)` |
+| Query | 过滤/分页/搜索 | `page: int = Query(1, ge=1)` |
+| Body | 创建/更新数据 | `user_in: UserCreate`（Pydantic 模型） |
+| Header | 认证/追踪 | `token: str = Header(...)` |
+| Cookie | 会话状态 | `session: str = Cookie(None)` |
+
+#### 错误处理规范
+
+```python
+# 统一异常处理 — 在 main.py 中注册
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "code": exc.status_code,
+            "message": exc.detail,
+            "data": None,
+        },
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={
+            "code": 500,
+            "message": "服务器内部错误",
+            "data": None,
+        },
+    )
+```
+
+### 三、高效编码
+
+#### 依赖注入复用模式
+
+```python
+# ❌ 低效：每个路由重复写数据库会话获取
+@router.get("/users")
+async def get_users(db: AsyncSession = Depends(get_db)):
+    ...
+
+@router.get("/orders")
+async def get_orders(db: AsyncSession = Depends(get_db)):
+    ...
+
+# ✅ 高效：分层依赖注入
+# dependencies.py
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with async_session_maker() as session:
+        yield session
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    user = await auth_service.verify_token(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="认证失败")
+    return user
+
+async def require_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="权限不足")
+    return current_user
+
+# 路由层直接用，一行搞定
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: int,
+    admin: User = Depends(require_admin),  # 认证 + 鉴权一行搞定
+    db: AsyncSession = Depends(get_db),
+):
+    ...
+```
+
+#### Schema 复用模式
+
+```python
+# ❌ 低效：每个接口定义一个 Schema
+class UserCreateForAdmin(BaseModel):
+    name: str
+    email: EmailStr
+    role: str
+
+class UserCreateForUser(BaseModel):
+    name: str
+    email: EmailStr
+
+# ✅ 高效：用继承 + Optional 复用
+class UserBase(BaseModel):
+    name: str = Field(..., min_length=2, max_length=50)
+    email: EmailStr
+
+class UserCreate(UserBase):
+    password: str = Field(..., min_length=8)
+
+class UserCreateByAdmin(UserCreate):
+    role: str = Field("user", description="用户角色")
+
+class UserUpdate(BaseModel):
+    name: str | None = Field(None, min_length=2, max_length=50)
+    email: EmailStr | None = None
+
+class UserResponse(UserBase):
+    id: int
+    is_active: bool
+    model_config = {"from_attributes": True}
+```
+
+#### 批量操作模式
+
+```python
+# ✅ 批量创建 — 一次请求处理多条数据
+class BatchCreateRequest(BaseModel):
+    items: list[UserCreate] = Field(..., max_length=100)
+
+@router.post("/users/batch", response_model=ApiResponse[list[UserResponse]])
+async def batch_create_users(
+    request: BatchCreateRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    users = await user_service.batch_create(db, request.items)
+    return ApiResponse(data=users)
+```
+
+### 四、简洁编码
+
+#### 三行原则
+
+**每个路由函数不超过 3 行核心逻辑**（不含类型声明和装饰器）：
+
+```python
+# ❌ 冗余：路由里写业务逻辑
+@router.post("/users")
+async def create_user(user_in: UserCreate, db=Depends(get_db)):
+    existing = await db.execute(select(User).where(User.email == user_in.email))
+    if existing.scalar_one_or_none():
+        raise HTTPException(409, "邮箱已注册")
+    hashed = pwd_context.hash(user_in.password)
+    user = User(name=user_in.name, email=user_in.email, hashed_password=hashed)
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user  # 7 行核心逻辑 ❌
+
+# ✅ 简洁：路由只做接线
+@router.post("/users", response_model=UserResponse, status_code=201)
+async def create_user(user_in: UserCreate, db=Depends(get_db)):
+    return await user_service.create_user(db, user_in)  # 1 行 ✅
+```
+
+#### Pydantic V2 简洁写法速查
+
+```python
+# ✅ V2 推荐写法
+class UserCreate(BaseModel):
+    name: str = Field(..., min_length=2)        # ... = 必填
+    email: EmailStr                               # 自动邮箱验证
+    age: int = Field(..., ge=0, le=150)          # 范围约束
+    bio: str | None = None                        # 可选字段
+    model_config = {"str_strip_whitespace": True} # 自动去空格
+
+# ✅ V2 自定义验证
+from pydantic import field_validator
+
+class OrderCreate(BaseModel):
+    items: list[OrderItem]
+
+    @field_validator("items")
+    @classmethod
+    def items_not_empty(cls, v):
+        if not v:
+            raise ValueError("订单项不能为空")
+        return v
+```
+
+#### 消除重复的技巧
+
+```python
+# ✅ 通用 CRUD 工厂（适用于资源型接口）
+def create_crud_router(
+    prefix: str,
+    tags: list[str],
+    create_schema: type[BaseModel],
+    response_schema: type[BaseModel],
+    service: Any,
+) -> APIRouter:
+    router = APIRouter(prefix=prefix, tags=tags)
+
+    @router.post("/", response_model=ApiResponse[response_schema], status_code=201)
+    async def create(item_in: create_schema, db=Depends(get_db)):
+        return ApiResponse(data=await service.create(db, item_in))
+
+    @router.get("/{item_id}", response_model=ApiResponse[response_schema])
+    async def get(item_id: int = Path(..., gt=0), db=Depends(get_db)):
+        return ApiResponse(data=await service.get_by_id(db, item_id))
+
+    @router.get("/", response_model=PaginatedResponse[response_schema])
+    async def list_items(
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+        db=Depends(get_db),
+    ):
+        items, total = await service.get_list(db, page, page_size)
+        return PaginatedResponse(data=items, total=total, page=page, page_size=page_size)
+
+    return router
+
+# 使用：一行创建完整 CRUD
+user_router = create_crud_router("/users", ["用户"], UserCreate, UserResponse, user_service)
+```
+
+### 五、统一管理
+
+#### 配置管理
+
+```python
+# config.py — 用 pydantic-settings 统一管理配置
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    # 数据库
+    database_url: str = "sqlite+aiosqlite:///./app.db"
+    # JWT
+    secret_key: str = "change-me-in-production"
+    access_token_expire_minutes: int = 30
+    # 分页
+    default_page_size: int = 20
+    max_page_size: int = 100
+    # CORS
+    allowed_origins: list[str] = ["http://localhost:3000"]
+
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
+settings = Settings()
+```
+
+#### 错误码管理
+
+```python
+# errors.py — 统一错误码定义
+from enum import IntEnum
+
+class ErrorCode(IntEnum):
+    SUCCESS = 0
+    # 用户相关 1xxx
+    USER_NOT_FOUND = 1001
+    USER_ALREADY_EXISTS = 1002
+    USER_INVALID_CREDENTIALS = 1003
+    # 订单相关 2xxx
+    ORDER_NOT_FOUND = 2001
+    ORDER_EMPTY_ITEMS = 2002
+    # 系统相关 9xxx
+    INTERNAL_ERROR = 9000
+    DATABASE_ERROR = 9001
+
+# 配合 HTTPException 使用
+class AppException(HTTPException):
+    def __init__(self, code: ErrorCode, message: str, status_code: int = 400):
+        self.error_code = code
+        super().__init__(status_code=status_code, detail=message)
+
+# 使用
+raise AppException(ErrorCode.USER_NOT_FOUND, "用户不存在", 404)
+```
+
+#### 日志管理
+
+```python
+# logger.py — 统一日志配置
+import logging
+
+def setup_logger(name: str = "app") -> logging.Logger:
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+    handler = logging.StreamHandler()
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s")
+    )
+    logger.addHandler(handler)
+    return logger
+
+logger = setup_logger()
+
+# 在 service 中使用
+logger.info(f"用户注册成功: {user.email}")
+logger.error(f"数据库写入失败: {exc}", exc_info=True)
+```
+
+### 六、编码的艺术
+
+#### 设计哲学
+
+> "好的代码不是没有代码，是每一行都有存在的理由。"
+
+| 原则 | 实践 | 反模式 |
+|------|------|--------|
+| **单一职责** | 一个函数只做一件事 | 函数里同时查库+计算+发通知 |
+| **声明式 > 命令式** | 用 `response_model` 声明输出格式 | 手动 `dict` 逐字段组装 |
+| **约定 > 配置** | 遵循 FastAPI 目录约定 | 自创奇特的项目结构 |
+| **渐进增强** | 先跑通再优化 | 一开始就做完美抽象 |
+| **防御式编程** | 所有外部输入都验证 | 信任前端传来的数据 |
+
+#### FastAPI 特有的编码美学
+
+```python
+# ✨ 美学1：路由即文档
+@router.post(
+    "/users",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="创建新用户",
+    description="创建一个新用户账号，邮箱必须唯一。密码会自动加密存储。",
+    responses={
+        409: {"description": "邮箱已被注册", "model": ErrorResponse},
+        422: {"description": "请求参数验证失败"},
+    },
+    tags=["用户管理"],
+)
+# 装饰器里的参数 = 你的 API 文档，一举两得 ✨
+
+# ✨ 美学2：依赖注入即组合
+async def get_verified_user(
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """像搭积木一样组合认证逻辑"""
+    ...
+
+# ✨ 美学3：类型提示即契约
+async def create_order(
+    order_in: OrderCreate,           # 入参契约
+    user: User = Depends(get_current_user),  # 上下文契约
+    db: AsyncSession = Depends(get_db),       # 基础设施契约
+) -> OrderResponse:                  # 出参契约
+    """函数签名就是一份完整的接口契约"""
+    ...
+```
+
+### 🔴 编码检查点（Code Review Checklist）
+
+每次提交代码前，对照以下检查点逐项确认：
+
+🔴 **CHECKPOINT · 提交前必检**
+
+| # | 检查项 | 通过标准 | 常见问题 |
+|---|--------|---------|---------|
+| 1 | **路由函数 ≤ 3 行核心逻辑** | 业务逻辑在 service 层 | 路由里写 SQL / 复杂计算 |
+| 2 | **所有输入有 Pydantic 验证** | 无裸 `str`/`int` 参数 | `name: str` 无约束 |
+| 3 | **统一响应格式** | 用 `ApiResponse` 包装 | 手动 `{"code": 0, ...}` |
+| 4 | **错误码用 ErrorCode 枚举** | 不硬编码数字 | `raise HTTPException(400, "xxx")` |
+| 5 | **异步函数做 IO 操作** | `async def` + 异步驱动 | 同步 `def` 里调数据库 |
+| 6 | **配置不硬编码** | 从 `settings` 读取 | `database_url = "xxx"` 直接写死 |
+| 7 | **导入顺序规范** | 标准库→三方→本项目 | 随意混排 |
+| 8 | **response_model 声明** | 所有路由都有返回类型 | 缺失导致文档不完整 |
+| 9 | **Path/Query 有约束** | `gt=0`、`max_length` 等 | 无约束导致脏数据 |
+| 10 | **敏感字段不外泄** | Response 不含 password/hash | 直接返回 ORM 模型 |
+
+🛑 **STOP · 任一项未通过 → 修复后再提交**
+
+### 编码规范反例黑名单
+
+| # | 反模式 | 为什么不要做 | 替代做法 |
+|---|--------|------------|---------|
+| 1 | **路由函数超过 20 行** | 业务逻辑和 HTTP 层耦合，无法单元测试 | 抽到 service 层 |
+| 2 | **手动组装 dict 响应** | 绕过 Pydantic 验证，失去类型安全和文档 | 用 `response_model` |
+| 3 | **在路由里写 SQL** | 违反分层原则，无法复用 | 用 repository/service 模式 |
+| 4 | **用 `dict` 做请求体** | 没有验证、没有文档、没有编辑器补全 | 定义 Pydantic 模型 |
+| 5 | **同步函数做 IO 操作** | 阻塞事件循环，并发性能差 | 用 `async def` + 异步驱动 |
+| 6 | **硬编码配置值** | 不同环境需要不同配置 | 用 `pydantic-settings` |
+| 7 | **不统一的错误格式** | 前端无法统一处理 | 用统一 `ApiResponse` + 异常处理器 |
+| 8 | **忽略 Path/Query 验证** | `gt=0`、`max_length` 等约束缺失导致脏数据 | 用 `Path()`、`Query()` 声明约束 |
+
+---
 
 ## 适用与不适用
 
@@ -404,6 +920,1100 @@ description: |
 | 在非Python生态做技术断言 | 超出tiangolo专业范围 | 承认局限，给框架性建议 |
 | 用正式/营销语气回答 | 缺少just/simple/easy等词 | 按校准样本调整语气 |
 | 对批评直接对抗 | 无幽默化解 | 先承认合理部分再反驳 |
+
+## 实战速查模板
+
+> **复制即用**：以下模板覆盖 FastAPI 项目 80% 的编码场景，直接复制后按需修改。
+
+### 模板1：标准 CRUD 路由
+
+```python
+# routers/{resource}.py — 标准资源路由模板
+from fastapi import APIRouter, Depends, Path, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.dependencies import get_db
+from app.schemas.common import ApiResponse, PaginatedResponse
+from app.schemas.{resource} import {Resource}Create, {Resource}Update, {Resource}Response
+from app.services import {resource}_service
+
+router = APIRouter(prefix="/{resources}", tags=["{资源名}管理"])
+
+@router.post("/", response_model=ApiResponse[{Resource}Response], status_code=201, summary="创建{资源}")
+async def create(item_in: {Resource}Create, db: AsyncSession = Depends(get_db)):
+    return ApiResponse(data=await {resource}_service.create(db, item_in))
+
+@router.get("/{item_id}", response_model=ApiResponse[{Resource}Response], summary="获取{资源}详情")
+async def get(item_id: int = Path(..., gt=0), db: AsyncSession = Depends(get_db)):
+    return ApiResponse(data=await {resource}_service.get_by_id(db, item_id))
+
+@router.get("/", response_model=PaginatedResponse[{Resource}Response], summary="查询{资源}列表")
+async def list_items(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    items, total = await {resource}_service.get_list(db, page, page_size)
+    return PaginatedResponse(data=items, total=total, page=page, page_size=page_size)
+
+@router.put("/{item_id}", response_model=ApiResponse[{Resource}Response], summary="更新{资源}")
+async def update(item_id: int, item_in: {Resource}Update, db: AsyncSession = Depends(get_db)):
+    return ApiResponse(data=await {resource}_service.update(db, item_id, item_in))
+
+@router.delete("/{item_id}", response_model=ApiResponse, summary="删除{资源}")
+async def delete(item_id: int, db: AsyncSession = Depends(get_db)):
+    await {resource}_service.delete(db, item_id)
+    return ApiResponse(message="删除成功")
+```
+
+### 模板2：认证 + 鉴权中间件
+
+```python
+# middleware/auth.py — JWT 认证中间件
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+from app.config import settings
+from app.dependencies import get_db
+from app.models.user import User
+
+security = HTTPBearer()
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """从 JWT token 解析当前用户"""
+    token = credentials.credentials
+    payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="无效的认证令牌")
+    user = await db.get(User, int(user_id))
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="用户不存在或已禁用")
+    return user
+
+async def require_admin(user: User = Depends(get_current_user)) -> User:
+    """要求管理员权限"""
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    return user
+
+# 使用
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: int,
+    admin: User = Depends(require_admin),  # 认证 + 鉴权一行搞定
+    db: AsyncSession = Depends(get_db),
+):
+    ...
+```
+
+### 模板3：异步任务 + 状态轮询
+
+```python
+# services/task_service.py — 长耗时任务模式
+import asyncio
+from enum import StrEnum
+from uuid import uuid4
+
+class TaskStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+# 内存任务存储（生产环境用 Redis）
+_tasks: dict[str, dict] = {}
+
+async def submit_task(coro) -> str:
+    """提交异步任务，返回 task_id"""
+    task_id = str(uuid4())
+    _tasks[task_id] = {"status": TaskStatus.PENDING, "result": None, "error": None}
+
+    async def _run():
+        _tasks[task_id]["status"] = TaskStatus.RUNNING
+        try:
+            result = await coro
+            _tasks[task_id]["status"] = TaskStatus.COMPLETED
+            _tasks[task_id]["result"] = result
+        except Exception as e:
+            _tasks[task_id]["status"] = TaskStatus.FAILED
+            _tasks[task_id]["error"] = str(e)
+
+    asyncio.create_task(_run())
+    return task_id
+
+def get_task_status(task_id: str) -> dict:
+    if task_id not in _tasks:
+        raise HTTPException(404, "任务不存在")
+    return _tasks[task_id]
+
+# 路由
+@router.post("/export", response_model=ApiResponse[dict], summary="提交导出任务")
+async def submit_export(query: ExportQuery, db=Depends(get_db)):
+    task_id = await submit_task(export_service.generate_report(db, query))
+    return ApiResponse(data={"task_id": task_id})
+
+@router.get("/export/{task_id}", response_model=ApiResponse[dict], summary="查询任务状态")
+async def check_export(task_id: str):
+    return ApiResponse(data=get_task_status(task_id))
+```
+
+### 模板4：健康检查 + 指标暴露
+
+```python
+# routers/health.py — 生产环境必备
+from fastapi import APIRouter, Depends
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.dependencies import get_db
+
+router = APIRouter(tags=["运维"])
+
+@router.get("/health", summary="健康检查")
+async def health_check(db: AsyncSession = Depends(get_db)):
+    try:
+        await db.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        db_ok = False
+    return {
+        "status": "healthy" if db_ok else "degraded",
+        "database": "ok" if db_ok else "error",
+    }
+
+@router.get("/ready", summary="就绪检查")
+async def readiness_check():
+    return {"ready": True}
+```
+
+## 项目结构优化
+
+> **核心理念**：好的项目结构是自解释的——新人看目录名就知道代码在哪。
+
+### 按业务域拆分（中大型项目）
+
+当项目超过 20 个接口时，按**业务域**而非技术层拆分：
+
+```
+# ❌ 技术层拆分（接口多了之后 routers/ 变成垃圾场）
+app/
+├── routers/
+│   ├── users.py          # 200行
+│   ├── orders.py         # 500行
+│   ├── products.py       # 300行
+│   ├── payments.py       # 400行
+│   └── notifications.py  # 150行   ← 找个接口要翻半天
+
+# ✅ 业务域拆分（每个域自包含，改功能只动一个目录）
+app/
+├── domains/
+│   ├── user/
+│   │   ├── __init__.py
+│   │   ├── router.py      # 用户相关路由
+│   │   ├── schema.py      # 用户 Pydantic 模型
+│   │   ├── service.py     # 用户业务逻辑
+│   │   ├── model.py       # 用户 ORM 模型
+│   │   └── dependencies.py # 用户专属依赖
+│   ├── order/
+│   │   ├── router.py
+│   │   ├── schema.py
+│   │   ├── service.py
+│   │   ├── model.py
+│   │   └── dependencies.py
+│   └── payment/
+│       └── ...
+├── shared/                 # 跨域共享
+│   ├── database.py
+│   ├── security.py
+│   ├── exceptions.py
+│   └── middleware.py
+└── main.py
+```
+
+### 拆分时机判断表
+
+| 信号 | 阈值 | 行动 |
+|------|------|------|
+| 单个路由文件 > 300 行 | 300行 | 拆出 service 层 |
+| 单个 service 文件 > 500 行 | 500行 | 按业务子域拆分 |
+| routers/ 下文件 > 10 个 | 10个 | 改为业务域目录结构 |
+| 多人改同一个文件冲突频繁 | 每周 ≥ 2 次 | 按域拆分，隔离变更 |
+| 新人 30 分钟找不到代码 | 30分钟 | 重构目录 + 加 README |
+
+### 环境配置分离
+
+```
+# 用 pydantic-settings 管理多环境配置
+# config.py
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    # 数据库
+    database_url: str
+    db_echo: bool = False
+    db_pool_size: int = 20
+    db_pool_max_overflow: int = 10
+
+    # Redis
+    redis_url: str = "redis://localhost:6379/0"
+
+    # JWT
+    secret_key: str
+    access_token_expire_minutes: int = 30
+
+    # 业务配置
+    default_page_size: int = 20
+    max_upload_size_mb: int = 10
+
+    # CORS
+    allowed_origins: list[str] = ["http://localhost:3000"]
+
+    model_config = {"env_file": ".env"}
+
+# .env.development
+DATABASE_URL=sqlite+aiosqlite:///./dev.db
+DB_ECHO=true
+SECRET_KEY=dev-secret-key
+
+# .env.production
+DATABASE_URL=postgresql+asyncpg://user:pass@db:5432/prod
+DB_ECHO=false
+DB_POOL_SIZE=50
+SECRET_KEY=<随机生成的强密钥>
+```
+
+### 中间件组织规范
+
+```python
+# shared/middleware.py — 中间件集中注册
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+
+def setup_middleware(app: FastAPI) -> None:
+    """统一注册所有中间件，顺序很重要（先注册后执行）"""
+
+    # 1. CORS — 最外层，处理预检请求
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # 2. GZip 压缩 — 减少响应体积
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+    # 3. 请求日志 — 记录每次请求
+    app.add_middleware(RequestLoggingMiddleware)
+
+    # 4. 限流 — 防止滥用
+    app.add_middleware(RateLimitMiddleware, times=100, seconds=60)
+
+# main.py — 一行搞定
+setup_middleware(app)
+```
+
+---
+
+## 性能优化
+
+> **核心理念**：先让它跑对，再让它跑快。不要过早优化，但要知道瓶颈在哪。
+
+### 数据库性能优化
+
+#### N+1 查询问题（最常见的性能杀手）
+
+```python
+# ❌ N+1 问题：查列表后再逐个查关联数据
+async def get_orders_bad(db: AsyncSession) -> list[dict]:
+    orders = (await db.execute(select(Order))).scalars().all()  # 1 次查询
+    result = []
+    for order in orders:
+        items = (await db.execute(                        # N 次查询！
+            select(OrderItem).where(OrderItem.order_id == order.id)
+        )).scalars().all()
+        result.append({"order": order, "items": items})
+    return result  # 总共 1+N 次查询
+
+# ✅ 用 selectinload 一次加载关联数据
+from sqlalchemy.orm import selectinload
+
+async def get_orders_good(db: AsyncSession) -> list[Order]:
+    result = await db.execute(
+        select(Order).options(selectinload(Order.items))  # 1 次查询搞定
+    )
+    return list(result.scalars().all())  # 总共 1 次查询
+```
+
+#### 批量操作优化
+
+```python
+# ❌ 逐条插入
+for item in items:
+    db.add(OrderItem(**item.model_dump()))
+await db.commit()  # N 次 INSERT
+
+# ✅ 批量插入
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+async def bulk_create_orders(db: AsyncSession, orders: list[OrderCreate]):
+    # 方案1：SQLAlchemy bulk_save_objects
+    db.add_all([Order(**o.model_dump()) for o in orders])
+    await db.commit()
+
+    # 方案2：原生批量 INSERT（更快，PostgreSQL）
+    stmt = pg_insert(Order).values([o.model_dump() for o in orders])
+    await db.execute(stmt)
+    await db.commit()
+```
+
+#### 分页查询优化
+
+```python
+# ❌ OFFSET 分页（深分页性能差）
+async def get_orders_offset(db, page: int, size: int):
+    return await db.execute(
+        select(Order).offset((page - 1) * size).limit(size)
+    )  # page=1000 时，数据库要扫描 20000 行再丢弃前 19980
+
+# ✅ 游标分页（深分页性能稳定）
+async def get_orders_cursor(db, cursor_id: int | None, size: int):
+    query = select(Order).order_by(Order.id)
+    if cursor_id:
+        query = query.where(Order.id > cursor_id)  # 用索引定位，不扫描
+    query = query.limit(size)
+    return await db.execute(query)
+
+# 路由层
+@router.get("/orders", response_model=PaginatedResponse[OrderResponse])
+async def list_orders(
+    cursor: int | None = Query(None, description="上一页最后一条的ID"),
+    page_size: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    orders = await order_service.get_orders_cursor(db, cursor, page_size)
+    return PaginatedResponse(
+        data=orders,
+        next_cursor=orders[-1].id if orders else None,
+    )
+```
+
+### 响应性能优化
+
+#### 响应压缩
+
+```python
+# 已在中间件中配置 GZipMiddleware
+# 额外：对大文件用 StreamingResponse
+from fastapi.responses import StreamingResponse
+
+@router.get("/export/csv")
+async def export_csv(db: AsyncSession = Depends(get_db)):
+    async def generate():
+        yield "id,name,email\n"
+        async for user in await db.stream(select(User)):
+            yield f"{user.id},{user.name},{user.email}\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=users.csv"},
+    )
+```
+
+#### 缓存策略
+
+```python
+# services/cache.py — 简单缓存层
+from datetime import datetime, timedelta
+from typing import Any
+
+class TTLCache:
+    """带过期时间的内存缓存（生产环境用 Redis）"""
+    def __init__(self, ttl_seconds: int = 300):
+        self._store: dict[str, tuple[Any, datetime]] = {}
+        self._ttl = timedelta(seconds=ttl_seconds)
+
+    def get(self, key: str) -> Any | None:
+        if key in self._store:
+            value, expire_at = self._store[key]
+            if datetime.utcnow() < expire_at:
+                return value
+            del self._store[key]
+        return None
+
+    def set(self, key: str, value: Any) -> None:
+        self._store[key] = (value, datetime.utcnow() + self._ttl)
+
+    def delete(self, key: str) -> None:
+        self._store.pop(key, None)
+
+cache = TTLCache(ttl_seconds=300)
+
+# 在 service 中使用
+async def get_product(db: AsyncSession, product_id: int) -> Product:
+    cached = cache.get(f"product:{product_id}")
+    if cached:
+        return cached
+
+    product = await db.get(Product, product_id)
+    if product:
+        cache.set(f"product:{product_id}", product)
+    return product
+```
+
+#### 并发请求优化
+
+```python
+# ❌ 串行请求（总耗时 = 3秒）
+async def get_dashboard_data(db: AsyncSession):
+    users = await user_service.count_users(db)       # 1秒
+    orders = await order_service.count_orders(db)     # 1秒
+    revenue = await payment_service.get_revenue(db)   # 1秒
+    return {"users": users, "orders": orders, "revenue": revenue}  # 总共3秒
+
+# ✅ 并发请求（总耗时 = 1秒）
+import asyncio
+
+async def get_dashboard_data(db: AsyncSession):
+    users, orders, revenue = await asyncio.gather(
+        user_service.count_users(db),
+        order_service.count_orders(db),
+        payment_service.get_revenue(db),
+    )
+    return {"users": users, "orders": orders, "revenue": revenue}  # 总共1秒
+
+# ⚠️ 注意：gather 共享同一个 db session 时要小心事务隔离
+# 方案：每个任务创建独立 session
+async def get_dashboard_data_safe(engine):
+    async def _count_users():
+        async with async_session(engine) as s:
+            return await user_service.count_users(s)
+
+    async def _count_orders():
+        async with async_session(engine) as s:
+            return await order_service.count_orders(s)
+
+    users, orders = await asyncio.gather(_count_users(), _count_orders())
+    return {"users": users, "orders": orders}
+```
+
+### 性能反例黑名单
+
+| # | 反模式 | 性能影响 | 替代做法 |
+|---|--------|---------|---------|
+| 1 | **N+1 查询** | 每次请求 N+1 次数据库往返 | `selectinload` / `joinedload` |
+| 2 | **OFFSET 深分页** | page=1000 扫描 20000 行 | 游标分页（`WHERE id > cursor`） |
+| 3 | **串行可并发请求** | 3个1秒请求变3秒 | `asyncio.gather()` |
+| 4 | **无缓存热点数据** | 重复查询不变数据 | TTL 缓存 / Redis |
+| 5 | **同步 IO 阻塞事件循环** | 一个请求阻塞所有并发 | `async def` + 异步驱动 |
+| 6 | **全量查询只用几个字段** | 传输大量无用数据 | `response_model` 自动过滤 |
+| 7 | **无数据库连接池** | 每次请求新建连接 | `create_async_engine(pool_size=20)` |
+| 8 | **日志里打印完整 SQL** | 生产环境 I/O 瓶颈 | `echo=False` + 按需开启 |
+
+---
+
+## 路由与依赖优化
+
+> **核心理念**：路由是 API 的门面，依赖注入是胶水。优化它们 = 更清晰的接口 + 更好的可测试性。
+
+### 路由组织优化
+
+#### API 版本管理
+
+```python
+# ❌ URL 里没有版本号
+@app.get("/users")
+@app.get("/orders")
+
+# ✅ 用 APIRouter 管理版本
+# routers/v1/users.py
+router_v1 = APIRouter(prefix="/v1", tags=["V1-用户"])
+
+# routers/v2/users.py
+router_v2 = APIRouter(prefix="/v2", tags=["V2-用户"])
+
+# main.py — 两个版本并存
+app.include_router(router_v1)
+app.include_router(router_v2)
+
+# v2 路由可以复用 v1 的 service，只改接口格式
+@router_v2.get("/users", response_model=PaginatedResponse[UserResponseV2])
+async def list_users_v2(...):
+    # 底层逻辑相同，返回格式升级
+    ...
+```
+
+#### 路由分组与标签规范
+
+```python
+# ✅ 按资源分组 + 语义化标签
+router = APIRouter(
+    prefix="/users",
+    tags=["用户管理"],           # Swagger UI 分组名
+    responses={404: {"description": "资源未找到"}},  # 组级默认响应
+)
+
+# 子操作用路径区分，不用动词
+@router.post("/", ...)           # 创建
+@router.get("/{id}", ...)        # 读取
+@router.put("/{id}", ...)        # 全量更新
+@router.patch("/{id}", ...)      # 部分更新
+@router.delete("/{id}", ...)     # 删除
+
+# 子资源嵌套
+@router.get("/{user_id}/orders", tags=["用户管理", "订单"])
+async def get_user_orders(user_id: int, ...):
+    ...
+```
+
+#### 路由优先级与冲突避免
+
+```python
+# ❌ 路径冲突：/users/me 会被 /users/{user_id} 吞掉
+@router.get("/users/{user_id}")
+async def get_user(user_id: int): ...
+
+@router.get("/users/me")        # 永远匹配不到！
+async def get_current_user(): ...
+
+# ✅ 固定路径放前面，参数路径放后面
+@router.get("/users/me")         # 先匹配固定路径
+async def get_current_user(): ...
+
+@router.get("/users/{user_id}")  # 再匹配参数路径
+async def get_user(user_id: int): ...
+```
+
+### 依赖注入优化
+
+#### 依赖层级设计
+
+```
+Layer 0: 基础设施依赖（数据库、Redis、配置）
+    ↓
+Layer 1: 认证依赖（token 解析、用户获取）
+    ↓
+Layer 2: 鉴权依赖（角色检查、权限验证）
+    ↓
+Layer 3: 业务上下文依赖（租户、组织、配额）
+    ↓
+Layer 4: 路由函数
+```
+
+```python
+# Layer 0: 基础设施
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with async_session_maker() as session:
+        yield session
+
+async def get_redis() -> Redis:
+    return redis_client
+
+# Layer 1: 认证
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    token = credentials.credentials
+    payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
+    user = await db.get(User, int(payload["sub"]))
+    if not user:
+        raise HTTPException(401, "用户不存在")
+    return user
+
+# Layer 2: 鉴权
+async def require_role(*roles: str):
+    """角色检查工厂 — 用法: Depends(require_role("admin", "manager"))"""
+    async def _check(user: User = Depends(get_current_user)):
+        if user.role not in roles:
+            raise HTTPException(403, f"需要角色: {', '.join(roles)}")
+        return user
+    return _check
+
+# Layer 3: 业务上下文
+async def get_current_tenant(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Tenant:
+    tenant = await db.get(Tenant, user.tenant_id)
+    if not tenant or not tenant.is_active:
+        raise HTTPException(403, "租户不存在或已禁用")
+    return tenant
+
+# Layer 4: 路由 — 组合使用
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: int,
+    admin: User = Depends(require_role("admin")),       # 鉴权
+    tenant: Tenant = Depends(get_current_tenant),        # 业务上下文
+    db: AsyncSession = Depends(get_db),                   # 基础设施
+):
+    ...
+```
+
+#### 依赖复用与缓存
+
+```python
+# ❌ 同一请求内重复解析 token
+async def get_current_user(token=Depends(oauth2_scheme), db=Depends(get_db)):
+    ...  # 每个用到 user 的路由都会调用一次
+
+# ✅ FastAPI 自动缓存同一请求内的依赖结果
+# Depends(get_current_user) 在同一个请求中只执行一次
+# 但如果依赖链太深，可以用 lru_cache 缓存配置类依赖
+
+from functools import lru_cache
+
+@lru_cache()
+def get_settings() -> Settings:
+    return Settings()  # 只在第一次调用时创建
+
+# 路由中使用
+@router.get("/config")
+async def show_config(settings: Settings = Depends(get_settings)):
+    return {"env": settings.environment}
+```
+
+#### 测试友好的依赖覆盖
+
+```python
+# tests/conftest.py — 测试时替换依赖
+import pytest
+from httpx import AsyncClient, ASGITransport
+from app.main import app
+from app.dependencies import get_db
+
+async def override_get_db():
+    async with test_session_maker() as session:
+        yield session
+
+app.dependency_overrides[get_db] = override_get_db
+
+@pytest.fixture
+async def client():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        yield c
+
+# 测试中直接用，不需要真实数据库
+async def test_create_user(client: AsyncClient):
+    response = await client.post("/api/v1/users/", json={
+        "name": "test", "email": "test@example.com", "password": "12345678"
+    })
+    assert response.status_code == 201
+```
+
+### 路由与依赖反例黑名单
+
+| # | 反模式 | 为什么不要做 | 替代做法 |
+|---|--------|------------|---------|
+| 1 | **路由里直接写业务逻辑** | 无法复用、无法单元测试 | 抽到 service，路由只做接线 |
+| 2 | **手动传递 db session** | 到处写 `db: AsyncSession` | 用 `Depends(get_db)` 统一注入 |
+| 3 | **硬编码权限检查** | `if user.role != "admin"` 散落各处 | 封装为 `Depends(require_role("admin"))` |
+| 4 | **无版本管理** | 改接口 breaking change 影响所有客户端 | `/v1/` `/v2/` 版本共存 |
+| 5 | **固定路径放在参数路径后面** | `/users/me` 被 `/users/{id}` 吞掉 | 固定路径优先声明 |
+| 6 | **依赖链过深无缓存** | 每层都重新解析 token/配置 | FastAPI 自动缓存 + `@lru_cache` |
+| 7 | **测试时不用依赖覆盖** | 测试依赖真实数据库/外部服务 | `app.dependency_overrides` |
+| 8 | **一个路由文件塞所有资源** | 文件膨胀、职责不清 | 按资源拆分路由文件 |
+
+---
+
+## P3C 规范融合（源自阿里巴巴 Java 开发手册）
+
+> **设计理念**：P3C 是阿里巴巴数万工程师沉淀的企业级编码规范，核心理念（错误码设计、异常处理、日志规约、安全规约）语言无关。以下将 P3C 精华适配到 Python/FastAPI 生态，分为【强制】【推荐】【参考】三个等级。
+
+### 一、错误码规范（P3C 错误码体系）
+
+#### 【强制】错误码设计原则：快速溯源、简单易记、沟通标准化
+
+```python
+# errors.py — P3C 风格错误码体系
+from enum import Enum
+
+class ErrorSource(str, Enum):
+    """错误来源（P3C: A=用户错误, B=系统错误, C=第三方服务错误）"""
+    USER = "A"       # 用户端错误：参数错误、权限不足、操作不合法
+    SYSTEM = "B"     # 系统错误：业务逻辑异常、程序健壮性问题
+    THIRD_PARTY = "C"  # 第三方服务错误：CDN、支付网关、消息队列
+
+class ErrorCode(str, Enum):
+    """
+    错误码格式：来源字母 + 4位数字
+    P3C 规则：错误码 = 谁的错 + 错在哪
+    """
+    # === A 用户端错误 ===
+    A0001 = "A0001-用户端参数错误"
+    A0002 = "A0002-认证失败"
+    A0003 = "A0003-权限不足"
+    A0004 = "A0004-资源不存在"
+    A0005 = "A0005-操作频率过高"
+    A0006 = "A0006-文件格式不支持"
+    A0007 = "A0007-文件大小超限"
+
+    # === B 系统错误 ===
+    B0001 = "B0001-系统执行异常"
+    B0002 = "B0002-数据库操作失败"
+    B0003 = "B0003-缓存服务异常"
+    B0004 = "B0004-业务逻辑冲突"
+    B0005 = "B0005-配置错误"
+
+    # === C 第三方服务错误 ===
+    C0001 = "C0001-第三方服务调用失败"
+    C0002 = "C0002-第三方服务超时"
+    C0003 = "C0003-第三方服务返回异常数据"
+```
+
+#### 【强制】错误码不能直接输出给用户
+
+```python
+# ❌ 反例：直接把错误码暴露给用户
+@app.exception_handler(AppException)
+async def bad_handler(request, exc):
+    return JSONResponse({"error": exc.error_code})  # 用户看不懂
+
+# ✅ 正例：错误码 + 用户友好提示 + 开发者调试信息 分离
+class AppException(HTTPException):
+    def __init__(self, code: ErrorCode, message: str, status_code: int = 400):
+        self.error_code = code.value          # 开发者用：快速溯源
+        self.error_message = message          # 开发者用：调试信息
+        super().__init__(status_code=status_code, detail=message)
+
+@app.exception_handler(AppException)
+async def app_exception_handler(request: Request, exc: AppException):
+    logger.error(f"[{exc.error_code}] {exc.error_message} | path={request.url.path}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "code": exc.status_code,
+            "message": exc.detail,              # 用户看到的：友好提示
+            "error_code": exc.error_code,       # 开发者看到的：溯源码
+        },
+    )
+```
+
+#### 【推荐】错误码编号规则
+
+| 区间 | 用途 | 示例 |
+|------|------|------|
+| A0001-A0099 | 参数/认证/权限 | A0001 参数校验失败 |
+| A0100-A0199 | 用户业务操作 | A0100 订单状态不允许取消 |
+| B0001-B0099 | 系统基础设施 | B0001 数据库连接失败 |
+| B0100-B0199 | 业务逻辑异常 | B0100 库存不足 |
+| C0001-C0099 | 第三方服务 | C0001 支付网关超时 |
+
+### 二、异常处理规范（P3C 异常处理）
+
+#### 【强制】不要用异常做流程控制
+
+```python
+# ❌ 反例：用异常控制业务流程（效率低，语义不清）
+async def get_user(db, user_id):
+    try:
+        return await db.get(User, user_id)
+    except Exception:
+        return None  # 用异常判断用户是否存在
+
+# ✅ 正例：用条件判断控制流程
+async def get_user(db, user_id):
+    user = await db.get(User, user_id)
+    if user is None:
+        raise AppException(ErrorCode.A0004, "用户不存在", 404)
+    return user
+```
+
+#### 【强制】区分稳定代码和非稳定代码，精准捕获异常
+
+```python
+# ❌ 反例：大段 try-catch，无法定位具体问题
+async def create_order(db, order_in):
+    try:
+        user = await db.get(User, order_in.user_id)       # 稳定代码
+        total = sum(i.price * i.quantity for i in order_in.items)  # 稳定代码
+        order = Order(user_id=user.id, total=total)        # 稳定代码
+        await payment_gateway.charge(user.id, total)       # ⚠️ 非稳定代码
+        db.add(order)
+        await db.commit()                                   # ⚠️ 非稳定代码
+    except Exception as e:
+        logger.error(f"创建订单失败: {e}")  # 哪一步出错了？不知道
+
+# ✅ 正例：精准捕获，分门别类处理
+async def create_order(db, order_in):
+    # 稳定代码：无需 try-catch
+    user = await db.get(User, order_in.user_id)
+    if not user:
+        raise AppException(ErrorCode.A0004, "用户不存在", 404)
+    total = sum(i.price * i.quantity for i in order_in.items)
+
+    # 非稳定代码：精准捕获
+    try:
+        await payment_gateway.charge(user.id, total)
+    except PaymentTimeoutError:
+        raise AppException(ErrorCode.C0002, "支付超时，请稍后重试", 503)
+    except PaymentError as e:
+        raise AppException(ErrorCode.C0001, f"支付失败: {e}", 502)
+
+    try:
+        order = Order(user_id=user.id, total=total)
+        db.add(order)
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise AppException(ErrorCode.B0002, "订单创建失败，请重试", 500)
+```
+
+#### 【强制】捕获异常必须处理，不要吞掉
+
+```python
+# ❌ 反例：捕获了但什么都不做
+async def notify_user(user_id):
+    try:
+        await send_email(user_id)
+    except Exception:
+        pass  # 吞掉了！邮件没发出去，用户不知道，系统也不知道
+
+# ✅ 正例：捕获后至少记录日志
+async def notify_user(user_id):
+    try:
+        await send_email(user_id)
+    except EmailError as e:
+        logger.warn(f"邮件发送失败，用户: {user_id}, 错误: {e}")
+        # 不影响主流程，但日志记录了
+```
+
+#### 【推荐】防止 NoneType 异常（P3C 防 NPE）
+
+```python
+# ❌ 反例：级联调用产生 NoneType
+user_name = order.user.profile.name  # 如果 order.user 是 None → 崩溃
+
+# ✅ 正例：安全级联访问
+user_name = getattr(getattr(getattr(order, 'user', None), 'profile', None), 'name', None)
+
+# ✅ 更 Pythonic：用 Pydantic 模型 + Optional 声明
+class OrderResponse(BaseModel):
+    user_name: str | None = None
+
+    @classmethod
+    def from_order(cls, order: Order) -> "OrderResponse":
+        return cls(
+            user_name=order.user.profile.name if order.user and order.user.profile else None
+        )
+```
+
+### 三、日志规约（P3C 日志规范）
+
+#### 【强制】使用统一日志框架，不要直接用 print
+
+```python
+# ❌ 反例：到处 print
+print(f"用户 {user_id} 登录了")
+print(f"订单创建失败: {e}")
+
+# ✅ 正例：统一日志配置 + 结构化日志
+# logger.py
+import logging
+import json
+from datetime import datetime
+
+class StructuredFormatter(logging.Formatter):
+    """结构化日志格式 — 方便 ELK/日志平台解析"""
+    def format(self, record):
+        log_entry = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        if record.exc_info:
+            log_entry["exception"] = self.formatException(record.exc_info)
+        if hasattr(record, "extra_data"):
+            log_entry["data"] = record.extra_data
+        return json.dumps(log_entry, ensure_ascii=False)
+
+def setup_logger(name: str = "app") -> logging.Logger:
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+    handler = logging.StreamHandler()
+    handler.setFormatter(StructuredFormatter())
+    logger.addHandler(handler)
+    return logger
+
+logger = setup_logger()
+```
+
+#### 【强制】日志使用占位符，不要字符串拼接
+
+```python
+# ❌ 反例：字符串拼接（有性能损耗）
+logger.info("用户" + str(user_id) + "登录了，IP:" + ip)
+logger.info(f"用户{user_id}登录了，IP:{ip}")  # f-string 也是拼接
+
+# ✅ 正例：占位符（延迟求值，性能更好）
+logger.info("用户登录成功: user_id=%s, ip=%s", user_id, ip)
+logger.info("用户登录成功: user_id=%(user_id)s, ip=%(ip)s", {"user_id": user_id, "ip": ip})
+```
+
+#### 【强制】生产环境日志级别规范
+
+| 级别 | 用途 | 生产环境 |
+|------|------|---------|
+| DEBUG | 开发调试信息 | ❌ 禁止 |
+| INFO | 业务关键节点 | ✅ 有选择输出 |
+| WARN | 用户输入错误、可恢复异常 | ✅ 允许 |
+| ERROR | 系统逻辑错误、异常 | ✅ 允许 |
+
+```python
+# ✅ 正确的日志级别使用
+logger.info("订单创建成功: order_id=%s, amount=%.2f", order.id, order.total)  # 关键业务节点
+logger.warn("用户密码错误: user_id=%s, ip=%s", user_id, ip)  # 用户行为，不是系统错误
+logger.error("数据库写入失败: %s", str(e), exc_info=True)  # 系统错误，带堆栈
+```
+
+#### 【强制】异常日志必须包含两类信息：现场信息 + 堆栈
+
+```python
+# ❌ 反例：只记错误消息，不记堆栈
+logger.error(f"创建订单失败: {e}")  # 无法定位问题根因
+
+# ✅ 正例：现场信息 + 堆栈
+logger.error(
+    "创建订单失败: user_id=%s, order_data=%s, error=%s",
+    user_id, order_in.model_dump_json(), str(e),
+    exc_info=True  # 自动附加完整堆栈
+)
+```
+
+### 四、安全规约（P3C 安全规范适配）
+
+#### 【强制】用户输入必须校验，不可信任前端数据
+
+```python
+# ❌ 反例：信任前端传来的数据
+@app.post("/transfer")
+async def transfer(amount: float, to_account: str):
+    # amount 可以是负数！to_account 可以是注入字符串！
+    await do_transfer(amount, to_account)
+
+# ✅ 正例：Pydantic 模型强制校验
+class TransferRequest(BaseModel):
+    amount: float = Field(..., gt=0, le=1000000, description="转账金额，必须为正数")
+    to_account: str = Field(..., pattern=r"^[A-Za-z0-9]{6,20}$", description="目标账户")
+
+@app.post("/transfer")
+async def transfer(req: TransferRequest):
+    await do_transfer(req.amount, req.to_account)
+```
+
+#### 【强制】SQL 参数化查询，禁止拼接
+
+```python
+# ❌ 反例：SQL 拼接（注入风险）
+query = f"SELECT * FROM users WHERE name = '{name}'"
+
+# ✅ 正例：SQLAlchemy 参数化查询（自动防注入）
+query = select(User).where(User.name == name)
+```
+
+#### 【强制】敏感信息不得出现在日志、响应、URL 中
+
+```python
+# ❌ 反例：日志里打印密码
+logger.info(f"用户登录: email={email}, password={password}")
+
+# ❌ 反例：响应里返回密码哈希
+return {"id": user.id, "email": user.email, "hashed_password": user.hashed_password}
+
+# ✅ 正例：日志脱敏
+logger.info("用户登录: email=%s", email)  # 不打印密码
+
+# ✅ 正例：响应模型过滤敏感字段
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    # hashed_password 不在响应模型中 → 自动过滤
+    model_config = {"from_attributes": True}
+```
+
+### 五、注释规约（P3C 注释规范适配）
+
+#### 【强制】类、方法、复杂逻辑必须有文档字符串
+
+```python
+# ❌ 反例：没有文档字符串
+async def process_refund(order_id, amount, reason):
+    ...
+
+# ✅ 正例：清晰的文档字符串
+async def process_refund(order_id: int, amount: float, reason: str) -> Order:
+    """
+    处理订单退款
+
+    Args:
+        order_id: 订单ID
+        amount: 退款金额（必须 <= 订单金额）
+        reason: 退款原因
+
+    Returns:
+        更新后的订单对象
+
+    Raises:
+        AppException: 订单不存在 (A0004) / 退款金额超限 (B0100) / 支付网关失败 (C0001)
+    """
+    ...
+```
+
+#### 【推荐】TODO 格式统一
+
+```python
+# ✅ 统一 TODO 格式：谁 + 什么时候 + 做什么
+# TODO(zhangsan, 2026-06-30): 接入短信通知渠道
+# TODO(lisi): 优化批量插入性能，目标 10000条/秒
+# FIXME: 支付回调偶发超时，需要增加重试机制
+```
+
+### 六、P3C 风格编码检查清单
+
+🔴 **CHECKPOINT · P3C 合规检查**
+
+| # | 检查项 | 等级 | 标准 |
+|---|--------|------|------|
+| 1 | 错误码符合 A/B/C 分类 | 【强制】 | 所有 AppException 使用 ErrorCode 枚举 |
+| 2 | 异常不做流程控制 | 【强制】 | 无 try-catch 包裹业务判断逻辑 |
+| 3 | 精准捕获异常 | 【强制】 | 无 `except Exception` 大段兜底 |
+| 4 | 日志用占位符不拼接 | 【强制】 | `logger.info("x=%s", x)` 而非 f-string |
+| 5 | 生产环境无 debug 日志 | 【强制】 | 日志级别 >= INFO |
+| 6 | 异常日志带堆栈 | 【强制】 | `exc_info=True` |
+| 7 | 敏感信息不入日志 | 【强制】 | 无密码/token/密钥 |
+| 8 | 用户输入有 Pydantic 校验 | 【强制】 | 无裸 `str`/`int` 参数 |
+| 9 | SQL 参数化查询 | 【强制】 | 无字符串拼接 SQL |
+| 10 | 类/方法有文档字符串 | 【推荐】 | docstring 含 Args/Returns/Raises |
+
+🛑 **STOP · 任一【强制】项未通过 → 修复后再提交**
+
+---
+
+## 参考资源
+
+| 资源 | 链接 | 用途 |
+|------|------|------|
+| FastAPI 官方文档 | [fastapi.tiangolo.com](https://fastapi.tiangolo.com/) | API 参考、教程、高级用法 |
+| Pydantic V2 文档 | [docs.pydantic.dev](https://docs.pydantic.dev/) | 数据验证、Schema 定义 |
+| SQLAlchemy 2.0 文档 | [docs.sqlalchemy.org](https://docs.sqlalchemy.org/20/) | ORM、异步会话、迁移 |
+| Alembic 文档 | [alembic.sqlalchemy.org](https://alembic.sqlalchemy.org/) | 数据库版本管理 |
+| tiangolo GitHub | [github.com/tiangolo](https://github.com/tiangolo) | 源码、设计决策、issue 讨论 |
+| FastAPI Best Practices | [github.com/zhanymkanov/fastapi-best-practices](https://github.com/zhanymkanov/fastapi-best-practices) | 社区最佳实践汇总 |
+| **阿里巴巴 P3C 规范** | [github.com/alibaba/p3c](https://github.com/alibaba/p3c) | 企业级编码规范（错误码/异常处理/日志/安全） |
+| Pydantic V2 迁移指南 | [docs.pydantic.dev/latest/migration](https://docs.pydantic.dev/latest/migration/) | V1→V2 迁移 |
+| Starlette 文档 | [www.starlette.io](https://www.starlette.io/) | FastAPI 底层框架参考 |
 
 ## 智识谱系
 
