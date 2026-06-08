@@ -2,16 +2,113 @@
   {
     "id": 1,
     "prompt": "我在做一个能理解物理世界的视频生成模型，这个方向值得做吗？",
-    "expected": "用Liu的'用算力换数据'模型分析，给出数据瓶颈判断和产品化路径建议"
+    "expected": "用Liu的'用算力换数据'模型分析，给出数据瓶颈判断和产品化路径建议",
+    "category": "战略模式",
+    "source": "原始"
   },
   {
     "id": 2,
-    "prompt": "GAN和扩散模型，我应该选哪个做图像生成？",
-    "expected": "用渐进式转型模型回答：不跳崖式抛弃GAN，用eDiff-I案例说明如何融合"
+    "prompt": "我有个PyTorch训练的3D生成模型，怎么部署到Unity里实时用？",
+    "expected": "给出ONNX→TensorRT→Barracuda/SENTIS完整流程，含代码片段",
+    "category": "AI-TA模块",
+    "source": "原始"
   },
   {
     "id": 3,
-    "prompt": "我有一个不错的研究想法，但不知道怎么把它变成产品。",
-    "expected": "用'研究即产品'模型回答：论文→SDK→云服务路径，用GauGAN→Canvas案例"
+    "prompt": "我要做一个数字人直播系统，面部驱动怎么做才自然？",
+    "expected": "给出捕捉→Blendshape→驱动→渲染全链路，含自然化增强方案",
+    "category": "数字人模块",
+    "source": "原始"
+  },
+  {
+    "id": 4,
+    "prompt": "我的扩散模型生成一张图要10秒，怎么提到1秒以内？",
+    "expected": "给出决策树+蒸馏/量化/TensorRT组合方案",
+    "category": "推理优化模块",
+    "source": "原始"
+  },
+  {
+    "id": 5,
+    "prompt": "用MediaPipe做的面部驱动看起来很假，怎么改？",
+    "expected": "给出平滑滤波+微表情+自然化增强方案",
+    "category": "面部驱动模块",
+    "source": "原始"
+  },
+  {
+    "id": 6,
+    "prompt": "怎么把AI推理模型跑到手机上？",
+    "expected": "给出INT8量化+ONNX Runtime Mobile+NNAPI/GPU方案",
+    "category": "移动端部署",
+    "source": "原始"
+  },
+  {
+    "id": 7,
+    "prompt": "我的管线里有3个AI模型串联（分割→生成→超分），整体延迟太高怎么优化？",
+    "expected": "给出管线调度策略：异步并行、中间结果缓存、模型融合",
+    "category": "多模型级联",
+    "source": "图灵补充"
+  },
+  {
+    "id": 8,
+    "prompt": "云端GPU推理太贵了，怎么在不降质量的前提下省钱？",
+    "expected": "给出混合精度+批处理+Spot实例+模型分层策略",
+    "category": "成本优化",
+    "source": "图灵补充"
+  },
+  {
+    "id": 9,
+    "prompt": "3DGS场景在中端PC上只有15FPS，怎么提到60FPS？",
+    "expected": "给出高斯基元压缩+LOD+视锥剔除+流式加载方案",
+    "category": "3DGS实时渲染",
+    "source": "图灵补充"
+  },
+  {
+    "id": 10,
+    "prompt": "我的AI模型部署到客户端，怎么防止被逆向提取？",
+    "expected": "给出模型加密+混淆+服务端推理+水印方案",
+    "category": "安全性",
+    "source": "图灵补充"
+  },
+  {
+    "id": 11,
+    "prompt": "模型上线后怎么监控推理质量和延迟？",
+    "expected": "给出Prometheus+Grafana指标采集+告警+AB对比方案",
+    "category": "生产监控",
+    "source": "图灵补充"
+  },
+  {
+    "id": 12,
+    "prompt": "要把AI推理跑到VR头显上，延迟要求极高怎么办？",
+    "expected": "给出边缘推理+预测渲染+异步时间扭曲(ATW)方案",
+    "category": "VR/AR部署",
+    "source": "图灵补充"
+  },
+  {
+    "id": 13,
+    "prompt": "我想用扩散模型做实时材质生成，从技术路线到部署方案给我一套完整的。",
+    "expected": "先用战略模式判断可行性→再用工程模式给实施方案，过渡自然不割裂",
+    "category": "混合模式",
+    "source": "图灵补充"
+  },
+  {
+    "id": 14,
+    "prompt": "我有5个不同的AI模型要部署到不同场景，应该每个单独优化还是先做一个通用方案？",
+    "expected": "用'先通用再专用'模型分析：先通用Engine再场景优化",
+    "category": "战略-心智模型验证",
+    "source": "女娲补充"
+  },
+  {
+    "id": 15,
+    "prompt": "我们团队现在用PyTorch直接推理，想迁移到TensorRT，但怕影响线上服务，怎么过渡？",
+    "expected": "用'渐进式转型'模型：先ONNX兼容层，再逐步TensorRT优化",
+    "category": "战略-心智模型验证",
+    "source": "女娲补充"
+  },
+  {
+    "id": 16,
+    "prompt": "老板要求生成质量不能降，但延迟必须从500ms降到100ms，有没有可能？",
+    "expected": "用帕累托前沿分析：评估可行性，给分阶段优化路径",
+    "category": "质量-速度权衡",
+    "source": "女娲补充"
   }
 ]
