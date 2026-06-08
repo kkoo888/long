@@ -7,6 +7,7 @@ description: |
   触发词：「用 Harrison Chase 的视角」「LangChain 思维」「Agent 架构」「Harness 设计」「编排层」。
   其他触发词：「LangGraph」「Tool设计」「Context Engineering」「Deep Agent」「MCP协议」「A2A协议」「可观测性」。
   更多触发词：「记忆架构」「意图层」「管道设计」「Agent测试」「错误恢复」「性能优化」「代码重构」「P3C规范」「错误码体系」「日志规约」「安全规约」「Agent编码规范」「异常处理」。
+  RAG相关：「LlamaIndex」「GraphRAG」「Agentic RAG」「LlamaCloud」「Workflow」「检索增强生成」。
   聚焦方向：技术架构决策、接口设计、复杂系统模块化、从原型到生产的工程化路径。
   输出语言：中文为主，技术术语保留英文（harness/context engineering/interrupt/resume）。
 tags:
@@ -14,11 +15,14 @@ tags:
   - 架构设计
   - LangChain
   - LangGraph
+  - LlamaIndex
   - 开源产品化
   - 技术决策
   - Context Engineering
   - 可观测性
   - 多Agent
+  - GraphRAG
+  - Agentic RAG
 ---
 
 # Harrison Chase · Skill v2.0
@@ -53,8 +57,16 @@ tags:
 | 安全部署 | 进阶模式（运维安全） | 4种部署模式+3层安全防御 |
 | 12-Factor | 12条铁律章节 | 生产级Agent的12条工程原则 |
 | Guardrails | 进阶模式（护栏体系） | 输入/过程/输出三层护栏 |
-| 实战架构 | 实战速查（6条生产验证） | Agent图+消息边界+错误三态+Context管道+存储分层 |
+| 实战架构 | 实战速查（5条生产验证） | Agent图+消息边界+Context管道+存储分层+技能关系 |
 | 批评回应 | 启发式承认+光谱 | 先承认合理，再用技术分析 |
+| RAG框架选型 | 第九章（LlamaIndex） | RAG-first，GraphRAG最强 |
+| 自治Agent | 第十章（DeepAgents） | LangGraph之上的规划/子Agent/持久记忆 |
+| Agentic RAG | 进阶模式（Context实战） | Agent动态决策检索，4阶段演进 |
+| 生产部署 | LangGraph Platform | 一键部署+自动扩缩容+Checkpoint |
+| 结构化输出 | LangChain新特性 | with_structured_output直接返回Pydantic |
+| 文档解析 | LlamaParse | 生产级PDF解析，表格/图片/多栏 |
+| 混合检索 | LlamaIndex | BM25+向量混合，生产RAG标配 |
+| 评估生态 | 进阶模式（评估） | LangSmith Evals+RAGAS+LLM Judge |
 
 | LangChain精髓 | 架构章节（LCEL+Agent模式） | Chain→Graph演进，LCEL管道语法 |
 | LangGraph精髓 | 架构章节（状态机+多Agent） | 状态图+条件边+中断恢复+检查点 |
@@ -82,6 +94,21 @@ tags:
 ```
 
 **快速触发**：提到「Harrison Chase」「LangChain」「Agent架构」「Tool设计」「编排层」→ 激活此Skill
+
+### 📖 优先级导航（先看哪几个模型）
+
+| 优先级 | 模型 | 一句话 | 什么时候看 |
+|--------|------|--------|-----------|
+| 🔴 必读 | 模型 13（Agent判别） | 80%场景不需要Agent | 任何项目开始前 |
+| 🔴 必读 | 模型 1（Harness>Framework） | 投资Harness层 | 架构选型时 |
+| 🔴 必读 | 模型 3（图式编排） | 先画状态图再写代码 | 设计工作流时 |
+| 🔴 必读 | 模型 7（工具封装） | 错误契约和成功契约同等重要 | 设计Tool时 |
+| 🟡 重要 | 模型 2（Context Engineering） | 不只是prompt，是系统工程 | 做RAG/记忆时 |
+| 🟡 重要 | 模型 5（可观测性） | 从第一天埋trace | 项目初始化时 |
+| 🟡 重要 | 模型 9（记忆架构） | 三层记忆分离 | 有跨会话需求时 |
+| 🟢 按需 | 其余模型 | 见下方TL;DR速查表 | 遇到具体问题时查阅 |
+
+> **阅读顺序建议**：13 → 1 → 3 → 7 → 然后根据项目需要选读。P3C规范和12-Factor在写代码时查阅。
 
 ---
 
@@ -246,7 +273,17 @@ tags:
 
 **核心洞察**：传统软件中代码=文档，AI 应用中 traces=文档。AI 决策是非确定性的，同样输入不同次运行可能不同，不能只看代码要看实际执行路径。Traces 有三重价值：调试（哪里出问题）、优化（哪里可改进）、合规（为什么做这个决定）。
 
-**核心要义**：从第一天就在 Agent 系统中埋 trace。可观测性是持续付费的刚需。
+**Agent Trace 必埋的 5 个埋点**：
+
+| 埋点 | 位置 | 记录什么 |
+|------|------|---------|
+| **意图识别** | 意图层输出 | intent + entities + confidence |
+| **LLM 调用** | 每次调 LLM | model + tokens + latency + tool_calls |
+| **Tool 调用** | 每次调工具 | tool_name + params + result + status |
+| **状态变更** | 每次 state 更新 | before → after diff |
+| **决策分支** | 每次条件路由 | condition + chosen_path + alternatives |
+
+**核心要义**：从第一天就在 Agent 系统中埋 trace。可观测性是持续付费的刚需。详细实现（Trace 3层结构、Span 数据结构）见「进阶实战模式 > 可观测性与 Tracing 实战」。
 
 ---
 
@@ -290,10 +327,36 @@ tags:
 
 **核心要义**：Tool 的错误契约和成功契约同等重要。不要用 HTTP 状态码做错误分类——太粗粒度，Agent 无法据此决策。
 
+**错误流向规则**（落地规范）：
+
+```
+工具返回错误
+    ↓
+retryable=True?  → 自动重试（指数退避，最多 3 次）
+    ↓ False
+user_facing=True? → 前端展示给用户（友好提示）
+    ↓ False
+escalate=True?   → tracing + 告警（系统管理员处理）
+    ↓ False
+静默记录日志（调试用）
+```
+
+**前端展示规则**：
+
+| 错误类型 | retryable | user_facing | escalate | 前端行为 |
+|---------|-----------|-------------|----------|---------|
+| 网络超时 | ✅ | ❌ | ❌ | 不展示，后台重试 |
+| 参数错误 | ❌ | ✅ | ❌ | 展示友好提示 |
+| 权限不足 | ❌ | ✅ | ✅ | 展示提示 + 上报 |
+| 系统崩溃 | ❌ | ❌ | ✅ | 不展示，上报处理 |
+| 数据损坏 | ❌ | ❌ | ✅ | 不展示，上报处理 |
+
 **反模式**：
 - ❌ 返回纯字符串错误消息 → Agent 必须解析自然语言
 - ❌ 所有错误都 retryable=true → 掩盖了真正的永久性错误
 - ❌ 不暴露错误详情 → Agent 无法给用户有意义的反馈
+
+**🔴 CHECKPOINT · 告诉 AI**：「工具错误必须返回 `{retryable, user_facing, escalate}` 三态。前端只展示 `user_facing=True` 的错误。系统错误走 tracing + 告警。」
 
 ---
 
@@ -1137,6 +1200,425 @@ def transfer_to_reviewer(state):
 
 **Chase 的总结**：LangChain 管「数据怎么流」，LangGraph 管「Agent 怎么想」。两者不是替代关系——LangGraph 底层仍然用 LCEL 的组件。选哪个取决于你的场景是「数据处理」还是「智能决策」。
 
+**LangGraph Platform（生产部署）**：
+
+2026 年 3 月，LangGraph Platform（原 LangSmith Deployment）推出 `langgraph deploy` 一键部署。
+
+```bash
+# 一键部署到 LangSmith Platform
+langgraph auth                    # 登录
+langgraph deploy                  # 自动构建 Docker 镜像 + provision 基础设施
+```
+
+**部署模式对比**：
+
+| 模式 | 特点 | 适用场景 |
+|------|------|---------|
+| **LangGraph Platform** | 一键部署，自动扩缩容，内置 PostgreSQL Checkpoint + Redis | 生产环境首选 |
+| **独立容器** | 单容器部署，包含所有组件 | 单机部署、测试环境 |
+| **Self-Hosted** | 控制平面+数据平面在用户本地 | 严格数据隐私要求 |
+
+**LangGraph Studio（可视化调试）**：
+
+LangGraph Studio 是官方的可视化调试工具，可以图形化查看 Agent 的执行路径：
+
+- 节点状态实时可视化
+- 边的条件路由高亮
+- 每步 state diff 查看
+- 支持断点调试和单步执行
+- 集成 LangSmith trace 查看
+
+**Streaming（流式输出）**：
+
+LangGraph 支持图节点级别的实时 token 流式推送：
+
+```python
+# 流式输出：逐 token 推送
+async for event in app.astream_events(input_data, config=config):
+    if event["event"] == "on_chat_model_stream":
+        token = event["data"]["chunk"].content
+        print(token, end="", flush=True)  # 实时打印
+    elif event["event"] == "on_tool_start":
+        print(f"\n🔧 调用工具: {event['name']}")
+    elif event["event"] == "on_tool_end":
+        print(f"✅ 工具返回: {event['data'].content[:100]}")
+```
+
+**🔴 CHECKPOINT · 告诉 AI**：「生产部署用 `langgraph deploy` 一键部署。调试用 LangGraph Studio 可视化。前端交互用 Streaming 逐 token 推送。」
+
+**LangChain Structured Output（结构化输出）**：
+
+`with_structured_output()` 是 LangChain 最重要的特性之一——让 LLM 直接输出 Pydantic 对象，而不是需要解析的字符串。
+
+```python
+from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, Field
+
+class OrderInfo(BaseModel):
+    order_id: str = Field(description="订单号")
+    status: str = Field(description="订单状态：pending/shipped/delivered")
+    total_amount: float = Field(description="总金额")
+    items: list[str] = Field(description="商品列表")
+
+llm = ChatOpenAI(model="gpt-4o")
+structured_llm = llm.with_structured_output(OrderInfo)
+
+# LLM 直接返回 Pydantic 对象，不是字符串
+result = structured_llm.invoke("帮我查订单 ORD-12345 的状态")
+print(result.order_id)     # "ORD-12345"
+print(result.status)       # "shipped"
+print(result.total_amount) # 299.99
+```
+
+**RunnableWithMessageHistory（对话历史管理）**：
+
+LCEL 中管理多轮对话历史的标准模式：
+
+```python
+from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_community.chat_message_histories import ChatMessageHistory
+
+store = {}
+def get_session_history(session_id: str) -> ChatMessageHistory:
+    if session_id not in store:
+        store[session_id] = ChatMessageHistory()
+    return store[session_id]
+
+chain_with_history = RunnableWithMessageHistory(
+    runnable=prompt | llm | output_parser,
+    get_session_history=get_session_history,
+    input_messages_key="question",      # 用户输入的 key
+    history_messages_key="chat_history", # 历史消息注入到 prompt 的 key
+)
+
+# 自动管理每个 session 的对话历史
+result = chain_with_history.invoke(
+    {"question": "我的订单到哪了？"},
+    config={"configurable": {"session_id": "user-123"}},
+)
+```
+
+**LangChain Memory 组件全景**：
+
+| 组件 | 功能 | 适用场景 |
+|------|------|---------|
+| `ChatMessageHistory` | 完整会话存储 | 需要保留所有历史 |
+| `SummaryMemory` | 摘要压缩旧消息 | 长对话，节省 token |
+| `EntityMemory` | 提取并持久化关键实体 | 需要记住用户偏好/订单号等 |
+| `ConversationBufferWindowMemory` | 只保留最近 N 轮 | 对话质量优先，控制窗口大小 |
+
+---
+
+### 九、LlamaIndex 架构精髓（RAG-first 的 Agent 框架）
+
+> LlamaIndex 与 LangChain 同期出发，但走了「RAG-first」路线。2026 年已成为「Agentic RAG」和「GraphRAG」的首选框架。
+
+**LlamaIndex 三大产品线**：
+
+| 产品线 | 定位 | 2026 关键更新 |
+|--------|------|--------------|
+| **LlamaIndex Core** | RAG + Agent 基础库 | v0.10.68 稳定版，token-bucket 限流 |
+| **LlamaCloud** | 托管文档解析/摄取/索引/检索 | LlamaParse 支持混合布局、表格、多语言 |
+| **Workflows** | 事件驱动 Agent 编排 | AgentWorkflow 多 Agent 文档处理 |
+
+**LlamaIndex Workflow vs LangGraph 对比**：
+
+| 维度 | LlamaIndex Workflow | LangGraph |
+|------|-------------------|-----------|
+| 编排模型 | 事件驱动（Event dispatch） | 状态图（StateGraph） |
+| 状态管理 | Context 对象 | TypedDict + Annotated |
+| 适用场景 | RAG 管道、文档处理 | 通用 Agent 决策流 |
+| GraphRAG | ✅ 原生支持（最强） | 需要第三方集成 |
+| 学习曲线 | 低 | 中 |
+| 生态集成 | LlamaCloud/LlamaParse | LangSmith/LangChain |
+
+**LlamaIndex 核心代码模式**：
+
+```python
+# 模式 1：基础 RAG（最简）
+from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
+documents = SimpleDirectoryReader("./docs").load_data()
+index = VectorStoreIndex.from_documents(documents)
+query_engine = index.as_query_engine()
+response = query_engine.query("公司的请假政策是什么？")
+
+# 模式 2：AgentWorkflow（多 Agent 协作）
+from llama_index.core.workflow import Workflow, step, StartEvent, StopEvent, Context
+
+class DocumentWorkflow(Workflow):
+    @step
+    async def research(self, ctx: Context, ev: StartEvent) -> StopEvent:
+        query = ev.query
+        # 检索 + 推理 + 生成
+        result = await self.run_research(query)
+        return StopEvent(result=result)
+
+# 模式 3：GraphRAG（实体图 + 向量混合检索）
+from llama_index.core import KnowledgeGraphIndex
+kg_index = KnowledgeGraphIndex.from_documents(documents)
+query_engine = kg_index.as_query_engine(
+    retriever_mode="embedding",  # 图遍历 + 向量相似度
+    similarity_top_k=5,
+)
+```
+
+**GraphRAG 适用场景**（决策树）：
+
+```
+你的数据有实体关系吗？
+├─ 否 → 纯向量 RAG（VectorStoreIndex）
+└─ 是 → 关系复杂度？
+    ├─ 低 → Advanced RAG（Semantic Chunking + Reranker）
+    └─ 高 → GraphRAG（实体图 + 向量混合）
+         └─ 需要多跳推理？→ GraphRAG + Agentic RAG
+```
+
+**LlamaParse（生产级文档解析）**：
+
+LlamaParse 是 LlamaIndex 的托管文档解析服务，解决 PDF/Word/Excel 中的复杂布局问题。
+
+```python
+from llama_cloud import LlamaParse
+
+# 解析复杂 PDF（含表格、图片、多栏布局）
+parser = LlamaParse(
+    result_type="markdown",           # 输出 Markdown 格式
+    premium_mode=True,                # 启用高精度模式
+    parse_mode="parse_page_with_agent",  # Agent 辅助解析
+)
+documents = parser.load_data("./annual_report.pdf")
+# 表格自动转为 Markdown 表格，图片自动提取描述
+```
+
+**LlamaParse vs 普通 PDF 解析**：
+
+| 场景 | 普通解析（PyPDF/pdfplumber） | LlamaParse |
+|------|---------------------------|-----------|
+| 纯文本 PDF | ✅ 够用 | ✅ 但杀鸡用牛刀 |
+| 含表格 | ❌ 表格结构丢失 | ✅ 自动转 Markdown 表格 |
+| 多栏布局 | ❌ 文字顺序错乱 | ✅ 正确识别栏顺序 |
+| 扫描件/图片 | ❌ 需要额外 OCR | ✅ 内置 OCR |
+| 多语言混合 | ❌ 容易乱码 | ✅ 支持 10+ 语言 |
+
+**LlamaCloud（托管 RAG 服务）**：
+
+```python
+from llama_index.indices.managed.llama_cloud import LlamaCloudIndex
+
+# 一行代码：上传文档 → 自动解析 → 自动索引 → 可查询
+index = LlamaCloudIndex(
+    name="my-knowledge-base",
+    project_name="default",
+    api_key="llx-...",
+)
+query_engine = index.as_query_engine()
+response = query_engine.query("2025年Q4营收是多少？")
+```
+
+**HyDE 查询转换**（假设文档嵌入）：
+
+HyDE 的思路：先让 LLM 生成一个「假设答案」，用这个假设答案去检索，比用原始查询检索更准。
+
+```python
+from llama_index.core.indices.query.query_transform import HyDEQueryTransform
+from llama_index.core.query_engine import TransformQueryEngine
+
+# 包装查询引擎，自动做 HyDE 转换
+hyde_transform = HyDEQueryTransform(include_generated=True)
+hyde_engine = TransformQueryEngine(query_engine, hyde_transform)
+
+# 用户问："公司的战略方向是什么？"
+# HyDE 内部先生成假设答案："公司战略聚焦AI+云计算三大方向..."
+# 用假设答案去向量检索，命中率更高
+response = hyde_engine.query("公司的战略方向是什么？")
+```
+
+**CRAG（自愈检索）**：
+
+CRAG = Corrective RAG。检索后自动评估质量，不够好就换策略重试。
+
+```python
+from llama_index.core.query_engine import CRAGQueryEngine
+from llama_index.core.retrievers import BaseRetriever
+
+# CRAG 会：
+# 1. 检索文档
+# 2. 评估每个文档的相关性（Correct/Incorrect/Ambiguous）
+# 3. 如果大部分文档不相关 → 改写查询，重新检索
+# 4. 如果仍然不相关 → 退化为 LLM 直接回答（不依赖检索）
+crag_engine = CRAGQueryEngine.from_args(
+    retriever=base_retriever,
+    llm=llm,
+    verbose=True,
+)
+```
+
+**BM25 + 向量混合检索**（生产环境标配）：
+
+```python
+from llama_index.core import VectorStoreIndex, BM25Retriever
+from llama_index.core.retrievers import QueryFusionRetriever
+
+# 向量检索（语义相似）
+vector_retriever = vector_index.as_retriever(similarity_top_k=5)
+
+# BM25 检索（关键词匹配）
+bm25_retriever = BM25Retriever.from_documents(documents, similarity_top_k=5)
+
+# 混合检索：两个检索器的结果融合 + 重排序
+hybrid_retriever = QueryFusionRetriever(
+    retrievers=[vector_retriever, bm25_retriever],
+    num_queries=1,              # 不做查询扩展
+    mode="reciprocal_rerank",   # 重排序融合
+)
+```
+
+**混合检索 vs 纯向量检索**：
+
+| 场景 | 纯向量 | BM25+向量混合 |
+|------|--------|-------------|
+| 语义查询（"战略方向"） | ✅ 强 | ✅ 强 |
+| 精确关键词（"ORD-12345"） | ❌ 弱 | ✅ 强 |
+| 专有名词（"Project Titan"） | ❌ 弱 | ✅ 强 |
+| 综合场景 | 70 分 | 90 分 |
+
+**DBOS 持久化工作流**：
+
+DBOS 是 LlamaIndex Workflow 的持久化方案，支持断点续跑。
+
+```python
+from llama_index.core.workflow import Workflow, step, StartEvent, StopEvent
+from dbos import DBOS
+
+class PersistentRAGWorkflow(Workflow):
+    @step
+    @DBOS.step()  # 自动持久化到 PostgreSQL
+    async def ingest(self, ctx, ev: StartEvent):
+        documents = await self.load_docs(ev.docs_path)
+        return IngestEvent(documents=documents)
+
+    @step
+    @DBOS.step()
+    async def index(self, ctx, ev: IngestEvent):
+        index = VectorStoreIndex.from_documents(ev.documents)
+        return StopEvent(result=index)
+# 如果中间步骤失败，从失败点恢复，不重头开始
+```
+
+**🔴 CHECKPOINT · 告诉 AI**：「RAG 场景优先考虑 LlamaIndex。GraphRAG 是多跳推理的首选。LangGraph 适合通用 Agent 决策流。两者可以组合使用。」
+
+---
+
+### 十、DeepAgents 架构（LangGraph 之上的自治 Agent）
+
+> DeepAgents（langchain-ai/deepagents）是 LangChain 官方基于 LangGraph 构建的高层 Agent 框架，2026 年初发布，9.7K⭐。
+
+**核心理念**：LangChain 让开发者写链，LangGraph 让开发者画图，DeepAgents 让开发者定义目标——Agent 自己画图、自己执行。
+
+**四大支柱**：
+
+| 支柱 | 机制 | 解决的问题 |
+|------|------|-----------|
+| **自动规划** | `write_todos` 工具 | Agent 自动将任务分解为待办事项并跟踪进度 |
+| **子 Agent 委派** | Sub-agent spawning | 主 Agent 将子任务委派给隔离的子 Agent 执行 |
+| **持久记忆** | Virtual filesystem | 虚拟文件系统存储跨会话信息 |
+| **自动摘要** | Auto-summarization | 对话过长时自动压缩上下文 |
+
+**DeepAgents 解决的核心问题——Context Bloat（上下文膨胀）**：
+
+```
+传统 Agent（无子 Agent）：
+用户 → Agent（所有工具 + 所有上下文 + 所有步骤）
+     → Context Window 爆炸 → 性能下降
+
+DeepAgents 架构：
+用户 → 主 Agent（规划 + 分派）
+     ├→ 子 Agent A（独立 Context，只带相关工具）
+     ├→ 子 Agent B（独立 Context，只带相关工具）
+     └→ 子 Agent C（独立 Context，只带相关工具）
+     → 结果汇总 → 主 Agent 返回
+```
+
+**何时用 DeepAgents vs 纯 LangGraph**：
+
+| 场景 | 选择 | 理由 |
+|------|------|------|
+| 任务 <30 秒，单工具 | 纯 LangGraph ReAct | 简单够用 |
+| 任务 >30 秒，多工具协调 | LangGraph + 手动编排 | 需要精细控制 |
+| 任务 >2 分钟，需要规划/反思 | DeepAgents | 开箱即用的自治能力 |
+| 需要跨会话记忆 | DeepAgents | 内置虚拟文件系统 |
+
+**30+ 内置功能清单**：
+
+| 类别 | 功能 | 说明 |
+|------|------|------|
+| **规划** | `write_todos` | 任务分解、进度追踪、动态调整 |
+| **文件系统** | `read/write/edit_file` | 完整文件操作 |
+| **文件系统** | `ls/glob/grep` | 文件搜索 |
+| **命令执行** | `execute` | 沙箱化 shell 执行 |
+| **子代理** | `task` (SubAgent) | 同步子代理委派 |
+| **子代理** | `AsyncSubAgent` | 异步远程子代理 |
+| **上下文管理** | 自动摘要 | 对话过长时自动压缩 |
+| **上下文管理** | 大输出保存 | 超长输出自动写入文件 |
+| **记忆** | `MemoryMiddleware` | 跨对话持久化记忆 |
+| **技能** | `SkillsMiddleware` | 可扩展自定义技能 |
+| **权限** | `FilesystemPermission` | 细粒度文件访问控制 |
+| **中间件** | Middleware Stack | 可插拔中间件架构 |
+| **模型适配** | `HarnessProfile` | 按模型自动调优 |
+| **人机协作** | Human-in-the-loop | 工具调用前审批 |
+| **输出** | `response_format` | 结构化输出 |
+| **缓存** | `PromptCaching` | Anthropic prompt 缓存 |
+| **集成** | MCP | 通过 langchain-mcp-adapters |
+| **集成** | ACP | Agent Client Protocol |
+| **集成** | LangGraph | 原生 LangGraph 支持 |
+
+**Middleware 架构**（可插拔中间件栈）：
+
+```python
+from deepagents import create_deep_agent, SubAgent, MemoryMiddleware
+
+agent = create_deep_agent(
+    model="anthropic:claude-sonnet-4-6",
+    tools=[search_tool, calculator_tool],
+    system_prompt="你是一个数据分析助手。",
+    subagents=[
+        SubAgent(
+            name="researcher",
+            description="搜索和分析研究论文",
+            system_prompt="你擅长学术研究。",
+            tools=[arxiv_tool],
+        )
+    ],
+    memory=["/memory/AGENTS.md"],              # 持久化记忆路径
+    permissions=[
+        FilesystemPermission(path="/data", allow_read=True, allow_write=False),
+    ],
+    checkpointer=MemorySaver(),                # LangGraph checkpoint
+)
+```
+
+**HarnessProfile（按模型自动调优）**：
+
+不同模型有不同的能力边界。HarnessProfile 让 DeepAgents 自动适配：
+
+| 模型 | 自动调优项 | 效果 |
+|------|-----------|------|
+| Claude Sonnet | 长上下文 + 工具调用精度 | 规划更详细，工具调用更准 |
+| GPT-4o | 响应速度 + 结构化输出 | 执行更快，JSON 输出更稳定 |
+| 开源模型（Llama/Qwen） | 简化 prompt + 减少工具数 | 避免超出模型能力边界 |
+
+**评估系统**（内置 Evals Suite）：
+
+| 评估基准 | 测什么 | 说明 |
+|---------|--------|------|
+| **Terminal Bench 2.0** | 端到端行为 | Harbor 集成 |
+| **LLM Judge** | 输出质量 | LLM 自动评分 |
+| **Memory Agent Bench** | 记忆能力 | 跨会话记忆准确性 |
+| **BFCL API 测试** | 工具使用 | 函数调用正确率 |
+| **Tau2 Airline** | 领域任务 | 航空客服场景 |
+
+**🔴 CHECKPOINT · 告诉 AI**：「DeepAgents 是 batteries-included 的 Agent harness。用 `create_deep_agent()` 3 行代码起步。需要精细控制时用纯 LangGraph，需要开箱即用时用 DeepAgents。」
+
 ---
 
 ## 示例对话
@@ -1866,46 +2348,7 @@ def build_message(role: str, content: str, tool_call_id: str = "") -> dict:
 
 ---
 
-### 3. Error Contract 落地规范（对应模型 7：工具封装）
-
-**工具错误必须返回三态**：
-
-```python
-class ToolError:
-    retryable: bool      # 能重试吗？
-    user_facing: bool    # 要展示给用户吗？
-    escalate: bool       # 要上报人工吗？
-```
-
-**错误流向规则**：
-
-```
-工具返回错误
-    ↓
-retryable=True?  → 自动重试（指数退避，最多 3 次）
-    ↓ False
-user_facing=True? → 前端展示给用户（友好提示）
-    ↓ False
-escalate=True?   → tracing + 告警（系统管理员处理）
-    ↓ False
-静默记录日志（调试用）
-```
-
-**前端展示规则**：
-
-| 错误类型 | retryable | user_facing | escalate | 前端行为 |
-|---------|-----------|-------------|----------|---------|
-| 网络超时 | ✅ | ❌ | ❌ | 不展示，后台重试 |
-| 参数错误 | ❌ | ✅ | ❌ | 展示友好提示 |
-| 权限不足 | ❌ | ✅ | ✅ | 展示提示 + 上报 |
-| 系统崩溃 | ❌ | ❌ | ✅ | 不展示，上报处理 |
-| 数据损坏 | ❌ | ❌ | ✅ | 不展示，上报处理 |
-
-**🔴 CHECKPOINT · 告诉 AI**：「工具错误必须返回 `{retryable, user_facing, escalate}` 三态。前端只展示 `user_facing=True` 的错误。系统错误走 tracing + 告警。」
-
----
-
-### 4. Context 组装管道（对应模型 2：Context Engineering）
+### 3. Context 组装管道（对应模型 2：Context Engineering）
 
 **标准管道流程**：
 
@@ -1927,7 +2370,7 @@ escalate=True?   → tracing + 告警（系统管理员处理）
 
 ---
 
-### 5. 数据存储分层原则（对应 Harness 层设计）
+### 4. 数据存储分层原则（对应 Harness 层设计）
 
 **存储选型规则**：
 
@@ -1970,7 +2413,7 @@ Qdrant（向量检索补充语义信息）
 
 ---
 
-### 6. 技能与 Agent 的关系（Harness 设计）
+### 5. 技能与 Agent 的关系（Harness 设计）
 
 **技能 ≠ Agent。技能是 Agent 的可插拔能力模块。**
 
@@ -2004,7 +2447,7 @@ class Skill:
 
 ### 一、可观测性与 Tracing 实战
 
-**核心原则**：AI 应用中 traces = 文档。没有 trace 的 Agent 就是黑箱——出了问题无法定位，优化时无法量化。
+**核心原则**：AI 应用中 traces = 文档。没有 trace 的 Agent 就是黑箱——出了问题无法定位，优化时无法量化。（5个必埋埋点见「模型 5：可观测性优先」）
 
 **Trace 的 3 层结构**：
 
@@ -2025,16 +2468,6 @@ Trace（一次完整执行）
 └── Span 4: Response Generation（800ms）
     └── Attribute: format = "markdown"
 ```
-
-**Agent Trace 必埋的 5 个埋点**：
-
-| 埋点 | 位置 | 记录什么 |
-|------|------|---------|
-| **意图识别** | 意图层输出 | intent + entities + confidence |
-| **LLM 调用** | 每次调 LLM | model + tokens + latency + tool_calls |
-| **Tool 调用** | 每次调工具 | tool_name + params + result + status |
-| **状态变更** | 每次 state 更新 | before → after diff |
-| **决策分支** | 每次条件路由 | condition + chosen_path + alternatives |
 
 **Trace 数据结构**：
 
@@ -2225,9 +2658,82 @@ def adaptive_rag_route(query: str) -> str:
         return rerank(results, query)
 ```
 
+**Agentic RAG 模式**（2026 核心范式）：
+
+传统 RAG 是「开发者决定怎么检索」，Agentic RAG 是「Agent 自己决定怎么检索」。
+
+```
+传统 RAG：
+用户查询 → [固定管道：向量检索 → Top-K → 生成] → 回答
+
+Agentic RAG：
+用户查询 → Agent 决策：
+  ├→ 需要检索吗？→ 否 → 直接用 LLM 知识回答
+  ├→ 检索什么？→ 选择检索源（向量/关键词/图/SQL）
+  ├→ 检索够了吗？→ 不够 → 改写查询，再检索
+  └→ 结果可信吗？→ 不可信 → 换检索策略重试
+```
+
+**Agentic RAG 四阶段演进**：
+
+| 阶段 | 检索决策者 | 检索次数 | 代表框架 | 适用场景 |
+|------|-----------|---------|---------|---------|
+| Naive RAG | 开发者 | 固定 1 次 | LangChain Basic | 简单 FAQ |
+| Advanced RAG | 开发者 | 1 次（优化后） | LlamaIndex | 企业知识库 |
+| **Agentic RAG** | Agent | 动态多次 | LangGraph + RAG | 复杂分析任务 |
+| **GraphRAG** | 图 + Agent | 多次多跳 | Neo4j + LlamaIndex | 关系密集领域 |
+
+**LlamaIndex 实现 Agentic RAG**：
+
+```python
+from llama_index.core.agent import ReActAgent
+from llama_index.core.tools import QueryEngineTool
+
+# 将多个检索引擎包装为工具
+vector_tool = QueryEngineTool.from_defaults(
+    query_engine=vector_engine,
+    name="vector_search",
+    description="向量语义搜索，适合概念性问题"
+)
+graph_tool = QueryEngineTool.from_defaults(
+    query_engine=graph_engine,
+    name="graph_search",
+    description="知识图谱搜索，适合实体关系问题"
+)
+sql_tool = QueryEngineTool.from_defaults(
+    query_engine=sql_engine,
+    name="sql_search",
+    description="结构化数据查询，适合统计数据"
+)
+
+# Agent 自主决定用哪个检索工具
+agent = ReActAgent.from_tools(
+    [vector_tool, graph_tool, sql_tool],
+    llm=llm,
+    verbose=True,
+)
+response = agent.chat("去年销售额最高的产品类别是什么？它和今年的趋势有什么关系？")
+# Agent 会：1. 先用 sql_search 查去年数据 2. 再用 vector_search 查趋势分析 3. 综合回答
+```
+
+**GraphRAG 决策树**（何时用图检索）：
+
+```
+你的数据有实体关系吗？
+├─ 否 → 纯向量 RAG
+└─ 是 → 关系复杂度？
+    ├─ 低 → Advanced RAG（Semantic Chunking + Reranker）
+    └─ 高 → GraphRAG（实体图 + 向量混合）
+         └─ 需要多跳推理？→ GraphRAG + Agentic RAG
+```
+
+**🔴 CHECKPOINT · 告诉 AI**：「RAG 场景先判断复杂度：简单 FAQ 用 Naive RAG，企业知识库用 Advanced RAG，需要动态决策用 Agentic RAG，关系密集用 GraphRAG。LlamaIndex 是 RAG 场景的首选框架。」
+
 ---
 
 ### 四、错误恢复与降级策略
+
+> 错误契约三态（retryable/user_facing/escalate）和前端展示规则见「模型 7：工具封装」。以下聚焦**恢复策略**。
 
 **Agent 的错误恢复不是「catch 异常然后报错」——是根据错误类型选择不同策略。**
 
@@ -2326,7 +2832,7 @@ def call_tool(name, params):
 
 ---
 
-### 七、Guardrails 护栏体系（OpenAI 官方最佳实践）
+### 六、Guardrails 护栏体系（OpenAI 官方最佳实践）
 
 > 来源：OpenAI《A Practical Guide to Building Agents》(2025.04)
 > 核心理念：Guardrails 在每个阶段都关键——从输入过滤、工具使用到人工介入。
@@ -2398,7 +2904,7 @@ class AgentGuardrails:
 
 ---
 
-### 六、部署与运维模式
+### 七、部署与运维模式
 
 **Agent 部署的 4 种模式**：
 
@@ -2420,7 +2926,7 @@ class AgentGuardrails:
 
 ---
 
-### 七、安全与合规
+### 八、安全与合规
 
 **Agent 安全的 3 个层次**：
 
@@ -2439,6 +2945,109 @@ class AgentGuardrails:
 | 支付/转账 | 🔴 高 | 金额确认 + 验证码 |
 | 修改配置 | 🟡 中 | 展示变更 diff → 确认 |
 | 查询数据 | 🟢 低 | 直接执行 |
+
+---
+
+### 九、评估生态（Eval Ecosystem）
+
+> Agent 不是写完就完了——你需要量化「它到底好不好」。2026 年评估生态已成熟：LangSmith 管 Agent 级评估，RAGAS 管 RAG 级评估，LLM Judge 管输出质量。
+
+**评估三层架构**：
+
+```
+┌─────────────────────────────────────────────────┐
+│ Layer 1: Agent 级评估（LangSmith Evals）          │
+│ - 端到端行为评估：给定输入，Agent 做对了吗？       │
+│ - Trace 回放：重放历史执行，检查决策路径            │
+│ - A/B 对比：两个版本的 Agent，哪个更好？            │
+├─────────────────────────────────────────────────┤
+│ Layer 2: RAG 级评估（RAGAS）                      │
+│ - 检索质量：检索到的文档相关吗？完整吗？            │
+│ - 生成质量：回答忠实于检索结果吗？有没有幻觉？      │
+│ - 4 个核心指标：Faithfulness / Relevancy /        │
+│   Context Precision / Context Recall              │
+├─────────────────────────────────────────────────┤
+│ Layer 3: 输出质量评估（LLM Judge）                 │
+│ - 用一个 LLM 评估另一个 LLM 的输出                 │
+│ - 适合主观质量评估（文风、逻辑、完整性）            │
+│ - 需要精心设计评估 prompt                         │
+└─────────────────────────────────────────────────┘
+```
+
+**RAGAS 评估代码模板**：
+
+```python
+from ragas import evaluate
+from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
+
+# 准备评估数据
+eval_dataset = {
+    "question": ["公司的请假政策是什么？", "报销流程怎么走？"],
+    "answer": [agent_answer_1, agent_answer_2],          # Agent 的回答
+    "contexts": [retrieved_docs_1, retrieved_docs_2],    # 检索到的文档
+    "ground_truth": [expected_answer_1, expected_answer_2],  # 标准答案
+}
+
+# 运行评估
+result = evaluate(
+    dataset=eval_dataset,
+    metrics=[faithfulness, answer_relevancy, context_precision, context_recall],
+)
+print(result)  # 输出每个指标的分数
+```
+
+**LangSmith Evals 评估流程**：
+
+```python
+from langsmith import Client
+
+client = Client()
+
+# 1. 创建评估数据集
+dataset = client.create_dataset("agent-eval-v1")
+client.create_examples(
+    inputs=[{"question": "如何重置密码？"}],
+    outputs=[{"expected": "进入设置→安全→重置密码"}],
+    dataset_id=dataset.id,
+)
+
+# 2. 定义评估函数
+def evaluate_agent(outputs, expected):
+    return {
+        "correct": expected["expected"] in outputs["answer"],
+        "latency": outputs.get("latency_ms", 0),
+    }
+
+# 3. 运行评估
+results = client.run_evaluation(
+    target=my_agent,
+    data="agent-eval-v1",
+    evaluators=[evaluate_agent],
+)
+```
+
+**LLM Judge 评估模板**：
+
+```python
+def llm_judge(question: str, answer: str, reference: str) -> dict:
+    """用 LLM 评估 Agent 输出质量"""
+    judge_prompt = f"""评估以下回答的质量（1-10分）。
+
+问题：{question}
+Agent回答：{answer}
+参考答案：{reference}
+
+评分维度：
+1. 准确性（回答是否正确）
+2. 完整性（是否遗漏关键信息）
+3. 可用性（用户能否直接据此操作）
+
+输出JSON格式：{{"accuracy": N, "completeness": N, "usability": N, "overall": N, "reason": "..."}}
+"""
+    return llm.invoke(judge_prompt)
+```
+
+**🔴 CHECKPOINT · 告诉 AI**：「三个评估层都要有。RAGAS 管检索质量，LangSmith Evals 管 Agent 行为，LLM Judge 管输出质量。上线前至少跑一轮评估。」
 
 ---
 
