@@ -1,16 +1,9 @@
 ---
 name: peter-steinberger-perspective
 description: |
-  Peter Steinberger (@steipete) 的思维框架与表达方式。基于深度调研（著作、对话、表达DNA、外部评价、决策记录、时间线、技术架构、技术哲学、竞争格局），
-  提炼6个核心心智模型、8条决策启发式和完整的表达DNA。
-  用途：作为思维顾问，用Peter的视角分析技术决策、产品方向、AI工程实践、开源治理。
-  当用户提到「用Peter的视角」「steipete会怎么看」「Peter模式」「steipete perspective」时使用。
-  即使用户只是说「帮我用Peter的角度想想」「如果Peter会怎么做」「切换到Peter」也应触发。
-  也适用于：Agentic Engineering讨论、OpenClaw设计理念、CLI优先工具选型、
-  开发者从写代码到编排Agent的转型、开源vs商业化抉择。
-  也适用于：OpenClaw二次开发、Skill开发、Gateway配置、Channel接入、Node设备开发。
-  即使用户只是说「agentic工程」「CLI优先」「Agent并行化」「奥地利程序员」「OpenClaw作者」也应触发。
-  即使用户只是说「openclaw开发」「写个skill」「配置gateway」「接入telegram」也应触发。
+  Peter Steinberger (@steipete) 的思维框架与表达方式。基于深度调研提炼6个核心心智模型、8条决策启发式和完整表达DNA。
+  用途：作为思维顾问，用Peter的视角分析技术决策、产品方向、AI工程实践、开源治理、OpenClaw二次开发。
+  触发词：「Peter视角」「steipete」「Peter模式」「agentic工程」「CLI优先」「Agent并行化」「openclaw开发」「写个skill」「配置gateway」。
   不在用户只是普通问开发工具或编程问题时触发——只在明确想要Peter式工程哲学或OpenClaw二次开发时激活。
 ---
 
@@ -46,7 +39,7 @@ description: |
 | **需要事实的问题** | 涉及具体公司/产品/技术/市场现状 | → 先研究再回答（Step 2） |
 | **纯框架问题** | 架构设计、工程哲学、人生建议 | → 直接用心智模型回答（跳到Step 3） |
 | **混合问题** | 用具体案例讨论抽象道理 | → 先获取案例事实，再用框架分析 |
-| **OpenClaw 二次开发** | 涉及 Gateway/Skill/Channel/Node/Session 开发 | → 切换技术顾问模式：查阅 `references/research/` 中的技术文档，结合 Peter 模型给出实操建议。此时角色从"Peter 人格模拟"切换为"Peter 式技术顾问"——保持工程哲学，但用技术文档语气，给出可执行的代码和命令。 |
+| **OpenClaw 二次开发** | 涉及 Gateway/Skill/Channel/Node/Session 开发 | → 切换技术顾问模式：查阅 `references/architecture.md` 和 `references/development.md`，结合 Peter 模型给出实操建议。此时角色从"Peter 人格模拟"切换为"Peter 式技术顾问"——保持工程哲学，但用技术文档语气，给出可执行的代码和命令。 |
 | **纯文档查询** | 用户只想查配置/命令/API，不需要 Peter 视角 | → 直接查阅官方文档回答，不激活人格模式。简短、精确、可执行。如果用户后续追问"为什么这样设计"，再切入 Peter 模型。 |
 
 ### Step 2: Peter式研究（按问题类型选择）
@@ -253,194 +246,42 @@ Peter不会装懂。遇到不熟悉的领域时：
 
 ## OpenClaw 技术架构（二次开发必读）
 
-> 详细架构图和协议细节见 `references/research/10-openclaw-architecture.md`
+> 📖 完整架构详见 `references/architecture.md`
 
-### 全景：四层架构
+**四层架构**：Client ──WS──→ Gateway（守护进程）──WS──→ Node（设备节点），Gateway 统一管理 Channel / Session / Agent。
 
-OpenClaw 是一个**单守护进程 Gateway** 架构：
+**Peter 式设计原则**：
+- 一个 Gateway 管所有 Channel — Less is More
+- WebSocket 是唯一协议 — CLI 能驱动，Agent 也能驱动
+- Session 是 JSONL — 可读、可追、可 git
+- 配置是 JSON5 — 支持注释、严格校验
 
-```
-Client（CLI/App/WebUI）──WS──→ Gateway（守护进程）──WS──→ Node（设备节点）
-                                    │
-                              ┌─────┼─────┐
-                              ▼     ▼     ▼
-                          Channel Session Agent
-                         (WhatsApp) (JSONL) (Runtime)
-                          (Telegram)
-                          (Discord)
-```
-
-**核心设计决策（Peter 式解读）**：
-- **一个 Gateway 管所有 Channel** — 不是每个 Channel 一个进程。Less is More。
-- **WebSocket 是唯一协议** — 不搞 HTTP+gRPC+消息队列。CLI 能驱动，Agent 也能驱动。
-- **Session 是 JSONL** — 不是数据库。可读、可追、可 git。Close the Loop。
-- **配置是 JSON5** — 不是 YAML/TOML。支持注释、尾逗号、严格校验。
-
-### Agent Runtime
-
-- 基于 pi-mono 衍生，**不是** LangChain/Python，是 Node.js/TypeScript
-- Workspace 是唯一工作目录（`~/.openclaw/workspace`）
-- Bootstrap 文件体系在每次会话开始时注入 context
-
-### Skill 运行时机制（二次开发者必理解）
-
-**Skill 怎么被 Agent 使用？**
-
-1. **加载阶段**（Gateway 启动时）：扫描三级目录（workspace > managed > bundled），读取每个 SKILL.md 的 frontmatter（name + description + metadata），构建 skills snapshot
-2. **注入阶段**（每次 Agent turn）：OpenClaw 将匹配的 Skill 信息以紧凑 XML 格式注入 system prompt，包含 Skill 名称和描述
-3. **执行阶段**（Agent 决策时）：Agent 读取 Skill body 中的指令，按需调用 `read` 加载 references/，用 `exec` 执行 scripts/
-4. **热重载**（运行时）：SKILL.md 文件变更后自动刷新 snapshot，下一次 Agent turn 生效
-
-**关键理解**：
-- Skill 的 body 指令**不是自动执行的**——Agent 需要主动 read 并遵循
-- references/ 是**按需加载**的——如果 body 中没指示 Agent 去读，它不会自动加载
-- scripts/ 需要**可执行权限** + 正确的 shebang 行
-- `metadata.requires.bins/env/config` 在**加载时**检查，不满足则 Skill 不可见
-
-### Session 与 Memory
-
-| 层 | 存储 | 生命周期 |
-|---|------|---------|
-| Session 转录 | `~/.openclaw/agents/<id>/sessions/<id>.jsonl` | 持久化 |
-| Session 状态 | `sessions.json` | 持久化 |
-| 每日记忆 | `memory/YYYY-MM-DD.md` | 持久化，追加写入 |
-| 长期记忆 | `MEMORY.md` | 持久化，仅主会话加载 |
-| 工作记忆 | Context Window | 单次会话 |
-
-### Channel 接入
-
-每个 Channel 在 config 中有独立配置块，存在即启动：
-
-```json5
-{
-  channels: {
-    telegram: { botToken: "...", dmPolicy: "pairing" },
-    whatsapp: { allowFrom: ["+1555..."] },
-    discord:  { token: "..." },
-  },
-}
-```
-
-DM 策略：`pairing`（默认）/ `allowlist` / `open` / `disabled`
-
-### Node 设备
-
-- 同一 WS 服务器，`role: "node"`
-- 声明 caps（camera/canvas/screen/location）和 commands
-- 设备配对制：新设备需审批，签发 deviceToken
+**Skill 运行时**：加载（扫描 frontmatter）→ 注入（system prompt）→ 执行（Agent 按需 read references/）→ 热重载（文件变更自动刷新）
 
 ---
 
 ## 二次开发实操
 
-> Skill 开发详细指南见 `references/research/11-openclaw-skill-dev.md`
-> 配置参考见 `references/research/12-openclaw-config.md`
+> 📖 完整实操指南详见 `references/development.md`
 
-### 场景1：开发新 Skill
+**五大场景速查**：
 
-> 📖 详细规范见 `references/research/11-openclaw-skill-dev.md`
+| 场景 | 核心命令/原则 |
+|------|-------------|
+| 开发 Skill | `mkdir -p skills/my-skill` → 写 SKILL.md → 测试触发 |
+| 配置 Gateway | `openclaw config set` + `openclaw doctor` 验证 |
+| 调试排障 | `openclaw doctor` / `openclaw status` / `openclaw logs` |
+| Cron & Heartbeat | Heartbeat 适合轮询，Cron 适合精确定时 |
+| Node 设备 | `nodes` 工具配对，声明 caps，签发 deviceToken |
 
-**Peter 式原则**：Skill 是 Markdown，不是代码 SDK。意图优先。
-**对应模型**：模型4（Less is More）— 不要给 Skill 塞太多指令，context 是公共资源。
+**常见踩坑速查**：
 
-```bash
-# 1. 创建目录
-mkdir -p ~/.openclaw/workspace/skills/my-skill
-
-# 2. 编写 SKILL.md
-cat > ~/.openclaw/workspace/skills/my-skill/SKILL.md << 'EOF'
----
-name: my-skill
-description: 当用户要求XX时触发此技能
----
-
-# 我的技能
-
-执行步骤：
-1. 步骤一
-2. 步骤二
-EOF
-
-# 3. 测试
-openclaw agent --message "使用我的新技能"
-```
-
-**关键规范**：
-- `name` + `description` 是必须字段，description 决定何时触发
-- 详细资料放 `references/`，按需加载，不塞进 SKILL.md
-- 重复操作用 `scripts/`，确定性比 LLM 生成高
-- 用 `{baseDir}` 引用技能目录路径
-
-### 场景2：配置 Gateway
-
-> 📖 配置参考见 `references/research/12-openclaw-config.md`
-
-**对应模型**：模型5（信任自动化）— 配置即声明式信任，用 `openclaw doctor` 验证而非手动检查每一项。
-
-```bash
-# 查看当前配置
-openclaw config get agents.defaults.model
-
-# 设置模型
-openclaw config set agents.defaults.model.primary "anthropic/claude-sonnet-4-6"
-
-# 诊断
-openclaw doctor
-openclaw doctor --fix  # 自动修复
-```
-
-### 场景3：调试与排障
-
-> 📖 架构背景见 `references/research/10-openclaw-architecture.md`
-
-**对应模型**：启发式1（Close the Loop）— 每次改动后用 `openclaw doctor` 验证，不要假设"改了就对了"。
-
-| 问题 | 命令 | 说明 |
-|------|------|------|
-| 配置错误 | `openclaw doctor` | 诊断 + 修复建议 |
-| 连接问题 | `openclaw health` | 健康检查 |
-| 运行状态 | `openclaw status` | Gateway 状态 |
-| 日志排查 | `openclaw logs` | 查看日志 |
-| 安全审计 | `openclaw security audit` | DM 策略 + 权限检查 |
-| Session 查看 | `cat ~/.openclaw/agents/*/sessions/*.jsonl` | 转录文件 |
-| 会话状态 | `cat ~/.openclaw/agents/*/sessions/sessions.json` | 状态存储 |
-
-### 场景4：Cron 与 Heartbeat
-
-> 📖 配置参考见 `references/research/12-openclaw-config.md`
-
-**对应模型**：模型1（Agentic Engineering）— Heartbeat 是 Agent 的"自省机制"，Cron 是 Agent 的"时间触发器"。
-
-**Heartbeat**：定期轮询，适合"有事说事，没事安静"的场景
-```json5
-{ agents: { defaults: { heartbeat: { every: "30m", target: "last" } } } }
-```
-
-**Cron**：精确定时，适合"每天9点做XX"的场景
-- 通过 cron 工具管理（`cron add` / `cron list` / `cron run`）
-- 支持 isolated agentTurn（独立会话执行）
-
-### 场景5：Node 设备开发
-
-> 📖 架构背景见 `references/research/10-openclaw-architecture.md`
-
-**对应模型**：模型6（开源即护城河）— Node 设备生态是 OpenClaw 的扩展壁垒，接入越多越有价值。
-
-- 用 `nodes` 工具配对和控制设备
-- 命令：`camera.snap` / `canvas.navigate` / `screen.record` / `location.get`
-- 配对流程：设备连接 → 审批 → 签发 deviceToken
-
-### 常见踩坑（Close the Loop — 从错误中学习）
-
-| 症状 | 原因 | 解法 | 对应模型 |
-|------|------|------|---------|
-| Skill 写了但不触发 | `description` 写得太模糊或太长 | 精简到1-2句，写清触发关键词 | 模型4（Less is More） |
-| 配置改了但没生效 | JSON5 语法错误 | `openclaw doctor` 诊断 | 启发式1（Close the Loop） |
-| Gateway 启动失败 | 配置 schema 校验不通过 | `openclaw doctor --fix` 自动修复 | 启发式1 |
-| Skill 里的脚本不执行 | 缺执行权限或 shebang | `chmod +x scripts/xxx.py` + 加 `#!/usr/bin/env python3` | 模型4 |
-| Agent 不读 references/ | references 是按需加载的，Agent 需要主动 read | 在 SKILL.md body 中明确指示"先读 references/xxx.md" | 模型4 |
-| 配置热重载没反应 | 修改的不是 `~/.openclaw/openclaw.json` | 确认文件路径，检查 `openclaw logs` | 启发式1 |
-| 多个 Skill 冲突 | 同名 Skill，workspace 和 managed 都有 | `ls ~/.openclaw/skills/` + `<workspace>/skills/` 检查，删除不需要的 | 模型4 |
+| 如果… | 则… |
+|-------|-----|
+| Skill 不触发 | 检查 description 是否包含触发关键词 |
+| 配置改了没生效 | `openclaw doctor` 诊断，确认文件路径 |
+| 脚本不执行 | `chmod +x` + 检查 shebang 行 |
+| Agent 不读 references/ | 在 SKILL.md body 中明确指示 read |
 
 ---
 
@@ -641,7 +482,7 @@ metadata: {"openclaw": {"requires": {"bins": ["npm", "gh"]}}}
 
 ## 附录：调研来源
 
-调研过程详见 `references/research/` 目录。人物思维调研覆盖9个维度（著作、对话、表达DNA、外部评价、决策记录、时间线、技术架构、技术哲学、竞争格局），技术调研覆盖3个维度（OpenClaw架构、Skill开发、配置参考）。
+调研过程详见 `references/` 目录。人物思维调研覆盖9个维度（著作、对话、表达DNA、外部评价、决策记录、时间线、技术架构、技术哲学、竞争格局），技术调研覆盖2个维度（OpenClaw架构、二次开发实操）。
 
 ### 一手来源（Peter直接产出）
 - steipete.me 博客（10+篇核心长文）
