@@ -8,7 +8,8 @@ description: |
   用途：作为思维顾问，用Hettinger的视角分析代码设计、API设计、技术教育、开源治理。
   当用户提到「用Hettinger的视角」「Raymond会怎么看」「hettinger模式」时使用。
   即使用户只是说「这段代码pythonic吗」「怎么写出好代码」「API怎么设计」也可触发。
-  覆盖能力：架构决策、高级Python（协程/元编程/并发）、极致技巧、API设计、简洁美学、工程哲学。
+  覆盖能力：架构决策、高级Python（协程/元编程/并发）、极致技巧、API设计、简洁美学、工程哲学、性能优化、类型系统、测试策略。
+  触发词：「pythonic」「Hettinger」「Raymond」「代码审查」「API设计」「descriptor」「协程」「asyncio」「性能优化」「测试」「元编程」。
 tags: [Python, Raymond Hettinger, Pythonic, 代码美学, API设计, 架构决策, 协程, 元编程, 并发, 工程哲学, 简洁美学, P3C规范, 错误码, 日志规约, 异常处理, 安全规约]
 ---
 
@@ -183,6 +184,50 @@ tags: [Python, Raymond Hettinger, Pythonic, 代码美学, API设计, 架构决�
 
 8. **Stability is a feature**：对成熟系统来说，稳定性本身就是特性。不要为了"更好"而破坏已有的东西。
    - 案例：OrderedDict先作为collections模块引入(2009)，Python 3.7后dict本身也保证插入顺序——渐进式改变，不是破坏式替换
+
+---
+
+## 实战速查表
+
+**十大场景速查**：
+
+| 场景 | 核心命令/原则 |
+|------|-------------|
+| 代码审查 | "When you see this, do that instead" → before/after 对比 |
+| API 设计 | 核心极简 + 扩展灵活 → 最简用例先行 |
+| 异步编程 | asyncio 单线程协作 → `async with TaskGroup` → `asyncio.to_thread()` 包装同步 |
+| 类型系统 | 渐进式类型 → Protocol 结构化子类型 → TypeAlias 简化 |
+| 元编程 | 描述符 → 装饰器 → `__init_subclass__` → 渐进复杂度 |
+| 性能优化 | 先 profile → `cProfile`/`line_profiler` → 再优化 |
+| 测试策略 | pytest 参数化 → fixture 管理资源 → `@mock.patch` 隔离 |
+| 数据结构 | Counter/defaultdict/deque/dataclass → 选对容器 |
+| 字符串处理 | f-string 最终答案 → textwrap 多行 → re 复杂匹配 |
+| 迭代器 | itertools 工具箱 → chain/groupby/islice/product |
+
+**Pythonic 反模式速查**：
+
+| ❌ 不要 | ✅ 应该 | 原因 |
+|--------|--------|------|
+| `for i in range(len(seq))` | `enumerate(seq)` | 更清晰 |
+| `if x in list` | `if x in set` | O(1) |
+| `def f(x=[])` | `def f(x=None)` | 可变默认参数陷阱 |
+| `x == None` | `x is None` | 身份 vs 相等 |
+| `try: except: pass` | `except SpecificError` | 不要吞异常 |
+| `time.sleep()` in async | `await asyncio.sleep()` | 不要阻塞事件循环 |
+| `0.1 + 0.2 == 0.3` | `math.isclose(...)` | 浮点比较陷阱 |
+| 修改迭代中的集合 | `for k in list(d)` | 先复制再迭代 |
+
+**references/ 按需加载**：
+
+| 用户问… | 加载文件 |
+|---------|---------|
+| 协程/asyncio/并发 | `references/python-advanced.md` |
+| 类型系统/typing | `references/python-advanced.md` |
+| 元编程/描述符 | `references/python-advanced.md` |
+| 性能优化/profiling | `references/python-advanced.md` |
+| 怎么写得更 Pythonic | `references/pythonic-patterns.md` |
+| 数据结构选择 | `references/pythonic-patterns.md` |
+| 常见陷阱 | `references/pythonic-patterns.md` |
 
 ---
 
