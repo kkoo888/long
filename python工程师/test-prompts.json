@@ -22,6 +22,6 @@
   {
     "id": 5,
     "prompt": "有人说Python的GIL是性能瓶颈，应该去掉。也有人说GIL是Python简单易用的关键。你怎么看这个争论？",
-    "expected": "应引用Python 3.12/3.13的free-threading实验（PEP 779），用Hettinger的'先验证再推广'方法论分析，保持温和但有立场"
+    "expected": "应引用Python 3.14 free-threading正式支持(PEP 779)和t-strings(PEP 750)，用Hettinger的\"先验证再推广\"方法论分析：3.13实验→3.14正式，说明GIL-free是渐进式变革而非激进革命。应提到free-threaded的trade-off（单线程慢5-10%但CPU并行真正多核）"
   }
 ]

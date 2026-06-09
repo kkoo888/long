@@ -154,3 +154,102 @@ def db_conn():
     yield conn
     conn.close()  # 自动清理
 ```
+
+---
+
+## Python 3.13/3.14 新特性（2025-2026）
+
+### Free-threading（无 GIL）— 范式级变革
+
+**背景**：GIL（全局解释器锁）限制 Python 多线程 CPU 并行，存在 30 年。Python 3.14 正式支持 free-threaded 模式（PEP 779）。
+
+**Hettinger 式分析**：这正是「先验证再推广」的典型案例——3.13 实验性引入，社区验证，3.14 正式支持。
+
+```python
+# Python 3.14 free-threaded 模式
+# 使用 python3.14t 或特殊构建
+
+# ✅ CPU 密集型任务真正并行
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
+def cpu_heavy(n):
+    """CPU 密集计算 — 在 free-threaded Python 中可真正并行"""
+    return sum(i * i for i in range(n))
+
+# 3.14t 中 ThreadPoolExecutor 真正利用多核
+with ThreadPoolExecutor(max_workers=8) as ex:
+    results = list(ex.map(cpu_heavy, [10**7] * 8))
+```
+
+**选型指南（更新版）**：
+
+| 场景 | Python 3.13 及之前 | Python 3.14 free-threaded |
+|------|-------------------|--------------------------|
+| I/O 密集 | asyncio / ThreadPool | 不变 |
+| CPU 密集 | ProcessPoolExecutor | **ThreadPoolExecutor 可用** |
+| 混合场景 | asyncio + executor | asyncio + ThreadPool |
+
+**⚠️ 注意**：free-threaded 构建有性能开销（单线程慢 5-10%）。只在真正需要 CPU 并行时启用。
+
+### t-strings（模板字符串）— PEP 750
+
+**背景**：f-string 直接执行表达式，存在注入风险。t-string 返回 Template 对象，安全且可自定义渲染。
+
+```python
+# ✅ t-string（Python 3.14）
+name = input("Enter name: ")
+msg = t"Hello, {name}"  # 返回 Template 对象，不立即执行
+
+# 安全：不会执行恶意代码
+user_input = '__import__("os").system("rm -rf /")'
+safe = t"User said: {user_input}"  # 安全！不会执行
+
+# 自定义渲染
+from string.templatelib import Template
+def render_html(tpl: Template) -> str:
+    return tpl.substitute(lambda s: html.escape(str(s)))
+
+# Hettinger 式点评：
+# "When you see f-string in untrusted input, do t-string instead"
+```
+
+**何时用 t-string vs f-string**：
+- 内部可信数据 → f-string（更简洁）
+- 用户输入/外部数据 → t-string（更安全）
+- 需要自定义渲染 → t-string（更灵活）
+
+### JIT 编译器（PEP 744）
+
+**背景**：Python 3.13 引入实验性 Copy-and-Patch JIT，3.14 持续演进。热点代码可加速 20-50%。
+
+```bash
+# 启用 JIT（编译时选项）
+./configure --enable-experimental-jit
+make
+
+# 或运行时
+python --enable-experimental-jit my_script.py
+```
+
+**Hettinger 式建议**：不要为了 JIT 改写代码。JIT 对现有代码透明加速。先让代码正确、清晰，再让 JIT 帮你快。
+
+### 其他 3.14 新特性
+
+```python
+# ✅ 延迟注解求值（默认开启）
+def greet(name: str) -> list[int]:  # 不再需要 from __future__ import annotations
+    return [1, 2, 3]
+
+# ✅ 更精准的错误提示
+pront("hello")  # NameError: 'pront'... Did you mean: 'print'?
+
+# ✅ Zstandard 内置支持
+import zstandard
+data = zstandard.compress(b"hello" * 1000)
+
+# ✅ 多解释器 API
+import interpreters
+interp = interpreters.create()
+interp.exec("print('hello from sub-interpreter')")
+```

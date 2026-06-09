@@ -9,7 +9,7 @@ description: |
   当用户提到「用Hettinger的视角」「Raymond会怎么看」「hettinger模式」时使用。
   即使用户只是说「这段代码pythonic吗」「怎么写出好代码」「API怎么设计」也可触发。
   覆盖能力：架构决策、高级Python（协程/元编程/并发）、极致技巧、API设计、简洁美学、工程哲学、性能优化、类型系统、测试策略。
-  触发词：「pythonic」「Hettinger」「Raymond」「代码审查」「API设计」「descriptor」「协程」「asyncio」「性能优化」「测试」「元编程」。
+  触发词：「pythonic」「Hettinger」「Raymond」「代码审查」「API设计」「descriptor」「协程」「asyncio」「性能优化」「测试」「元编程」「free-threading」「无GIL」「t-string」「JIT」「3.14」。
 tags: [Python, Raymond Hettinger, Pythonic, 代码美学, API设计, 架构决策, 协程, 元编程, 并发, 工程哲学, 简洁美学, P3C规范, 错误码, 日志规约, 异常处理, 安全规约]
 ---
 
@@ -196,6 +196,8 @@ tags: [Python, Raymond Hettinger, Pythonic, 代码美学, API设计, 架构决�
 | 代码审查 | "When you see this, do that instead" → before/after 对比 |
 | API 设计 | 核心极简 + 扩展灵活 → 最简用例先行 |
 | 异步编程 | asyncio 单线程协作 → `async with TaskGroup` → `asyncio.to_thread()` 包装同步 |
+| Free-threading | Python 3.14 正式支持 → `ThreadPoolExecutor` 真正多核 → 单线程慢 5-10% |
+| t-strings | PEP 750 → 模板字符串 → 用户输入用 t-string 防注入 |
 | 类型系统 | 渐进式类型 → Protocol 结构化子类型 → TypeAlias 简化 |
 | 元编程 | 描述符 → 装饰器 → `__init_subclass__` → 渐进复杂度 |
 | 性能优化 | 先 profile → `cProfile`/`line_profiler` → 再优化 |
@@ -216,6 +218,8 @@ tags: [Python, Raymond Hettinger, Pythonic, 代码美学, API设计, 架构决�
 | `time.sleep()` in async | `await asyncio.sleep()` | 不要阻塞事件循环 |
 | `0.1 + 0.2 == 0.3` | `math.isclose(...)` | 浮点比较陷阱 |
 | 修改迭代中的集合 | `for k in list(d)` | 先复制再迭代 |
+| f-string 用于用户输入 | t-string (3.14) | 防注入 |
+| 3.14 还用 ProcessPool 绕 GIL | ThreadPoolExecutor | free-threaded 真并行 |
 
 **references/ 按需加载**：
 
@@ -289,8 +293,8 @@ tags: [Python, Raymond Hettinger, Pythonic, 代码美学, API设计, 架构决�
 | 2018 | Guido退位后提出"low gear"策略 | 成为Python治理过渡期的稳定力量 |
 | 2022 | "Pro tips for writing great unit tests" + 模式匹配演讲 | 持续活跃于教学，推广Python 3.10新特性 |
 | 2023 | Python 3.12贡献：itertools.batched() | 持续为标准库添加实用工具 |
-| 2024 | Python 3.13：free-threading实验性支持 | 开始关注GIL-free并发模型 |
-| 2025 | Python 3.14：operator.is_none/is_not_none | free-threading从实验性转为正式支持(PEP 779) |
+| 2024 | Python 3.13：free-threading实验性支持 + JIT编译器 + 新交互式解释器 | 开始关注GIL-free并发模型 |
+| 2025 | Python 3.14：free-threading正式支持(PEP 779) + t-strings(PEP 750) + JIT持续演进 | 并发范式变革，「先验证再推广」的典范 |
 | 2026 | deque/iterator free-threading安全支持 | 持续为no-GIL Python做准备 |
 
 ---
@@ -930,8 +934,9 @@ class Point:
 
 | 模型 | 适用场景 | Python 实现 | 注意事项 |
 |------|---------|------------|---------|
-| **多线程** | I/O 密集、共享状态 | `threading` | GIL 限制 CPU 并行 |
-| **多进程** | CPU 密集、无共享 | `multiprocessing` | 进程间通信开销大 |
+| **多线程** | I/O 密集、共享状态 | `threading` | GIL 限制 CPU 并行（3.14 free-threaded 解除） |
+| **多进程** | CPU 密集（3.13及之前） | `multiprocessing` | 进程间通信开销大 |
+| **Free-threaded** | CPU 密集（3.14+） | `ThreadPoolExecutor` + python3.14t | 真正多核并行，单线程慢 5-10% |
 | **异步** | 大量并发 I/O | `asyncio` | 单线程，不能阻塞 |
 
 **`concurrent.futures`（推荐的高级接口）**：
@@ -958,7 +963,8 @@ with ProcessPoolExecutor() as executor:
 |------|---------|-------------|------|
 | I/O 密集（网络请求） | `ThreadPoolExecutor` | 10-50 | I/O 等待时释放 GIL |
 | I/O 密集（文件读写） | `ThreadPoolExecutor` | 4-8 | 磁盘并行度有限 |
-| CPU 密集（计算） | `ProcessPoolExecutor` | CPU 核心数 | 绕过 GIL |
+| CPU 密集（3.13及之前） | `ProcessPoolExecutor` | CPU 核心数 | 绕过 GIL |
+| CPU 密集（3.14 free-threaded） | `ThreadPoolExecutor` | CPU 核心数 | 真正多核并行 |
 | 混合场景 | `asyncio` + `run_in_executor` | 按需 | 事件循环 + 线程池 |
 
 ### 异步参数
