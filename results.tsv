@@ -1,7 +1,0 @@
-timestamp	commit	skill	old_score	new_score	status	dimension	note	eval_mode
-2026-06-07T21:40	793c146	Agent工程师	-	70.0	baseline	-	基线评估	dry_run
-2026-06-07T21:45	7f3c1de	Agent工程师	70.0	78.8	keep	全部维度	注入10大能力模块+精简冗余+新增代码示例	dry_run
-2026-06-07T21:52	9be5737	Agent工程师	78.8	82.0	keep	dim5,dim7,dim8	注入LangChain/LangGraph架构精髓 - LCEL+6种模式+状态管理+Checkpoint+多Agent拓扑	dry_run
-2026-06-07T21:59	0383511	Agent工程师	82.0	88.5	keep	dim5,dim7,dim8	进阶实战模式 - 可观测性Trace+Agent测试+Context工程+错误恢复+性能优化+安全部署	dry_run
-2026-06-07T22:08	d882999	Agent工程师	88.5	91.1	keep	dim2,dim3,dim4,dim6,dim9	Round4: CHECKPOINT强化+快速决策卡+场景速查+代码反例+实现级失败模式	dry_run
-2026-06-07T22:22	2f962ed	Agent工程师	91.1	93.3	keep	dim4,dim5,dim6,dim7,dim8	Round6: 对标行业最佳实践 - 12-Factor+4层记忆+TreeRAG+Guardrails+衰减函数	dry_run
