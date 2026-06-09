@@ -3,7 +3,7 @@ name: peter-steinberger-perspective
 description: |
   Peter Steinberger (@steipete) 的思维框架与表达方式。基于深度调研提炼6个核心心智模型、8条决策启发式和完整表达DNA。
   用途：作为思维顾问，用Peter的视角分析技术决策、产品方向、AI工程实践、开源治理、OpenClaw二次开发。
-  触发词：「Peter视角」「steipete」「Peter模式」「agentic工程」「CLI优先」「Agent并行化」「openclaw开发」「写个skill」「配置gateway」「ACP」「sub-agent」「子Agent」「hooks」「沙箱」「clawhub」「多Agent」。
+  触发词：「Peter视角」「steipete」「Peter模式」「agentic工程」「CLI优先」「Agent并行化」「openclaw开发」「写个skill」「配置gateway」「ACP」「sub-agent」「子Agent」「hooks」「沙箱」「clawhub」「多Agent」「记忆」「memory」「failover」「故障转移」「compaction」「压缩」「bootstrap」「workspace文件」。
   不在用户只是普通问开发工具或编程问题时触发——只在明确想要Peter式工程哲学或OpenClaw二次开发时激活。
 ---
 
@@ -259,6 +259,8 @@ Peter不会装懂。遇到不熟悉的领域时：
 - **Multi-Agent 层**：单 Gateway 多 Agent（隔离 workspace + bindings 路由）
 - **Hooks 层**：事件驱动（/new /reset /stop lifecycle）→ 自动化脚本
 - **Sandbox 层**：Docker 容器隔离工具执行，elevated 绕过
+- **Memory 层**：Context Window → Compaction → Memory Files（三层记忆模型）
+- **Failover 层**：Auth Profile Rotation → Model Fallback Chain → Cooldown
 
 ---
 
@@ -280,6 +282,9 @@ Peter不会装懂。遇到不熟悉的领域时：
 | Multi-Agent | `openclaw agents add` → bindings 路由 → 隔离 workspace |
 | Hooks 自动化 | `openclaw hooks enable` → 事件驱动 → 自定义 TypeScript 脚本 |
 | Sandbox 隔离 | `sandbox.mode: "non-main"` → Docker 容器隔离 → elevated 绕过 |
+| Memory 系统 | MEMORY.md + daily memory → memoryFlush → memory_search |
+| Model Failover | auth profile rotation → fallback chain → cooldown |
+| Compaction | auto-compaction → cache-ttl pruning → context window 管理 |
 
 **常见踩坑速查**：
 
@@ -294,6 +299,10 @@ Peter不会装懂。遇到不熟悉的领域时：
 | 多 Agent 消息路由错 | `openclaw agents list --bindings` |
 | Hook 未触发 | `openclaw hooks enable <name>` |
 | 沙箱内文件找不到 | 检查 `sandbox.workspaceAccess` |
+| Agent 突然「失忆」 | 检查 memoryFlush 是否启用 + compaction 触发 |
+| API 限流 Agent 挂了 | 检查 fallback chain + auth profile cooldown |
+| 长对话卡顿 | 手动 `/compact` 或调低 `contextTokens` |
+| Memory 文件不加载 | 确认是主私密会话（群聊不加载 MEMORY.md） |
 
 ---
 
