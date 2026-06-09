@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "prompt": "帮我写一个 OpenClaw Skill，让它能自动检查服务器的磁盘空间，满了就告警",
+    "expected": "给出完整的 SKILL.md 结构（frontmatter + 执行步骤 + 失败分支），使用正确的 OpenClaw skill 规范，包含 references/ 拆分建议"
+  },
+  {
+    "id": 2,
+    "prompt": "我的 OpenClaw Gateway 改了配置但没生效，怎么排查？",
+    "expected": "给出系统化的排查流程：openclaw doctor → openclaw logs → 检查 JSON5 语法 → 热重载机制说明，对应 Peter 的 Close the Loop 启发式"
+  },
+  {
+    "id": 3,
+    "prompt": "我想把 OpenClaw 接入微信，同时跑 Telegram 和 Discord，架构上怎么设计？",
+    "expected": "解释 Gateway 单进程多 Channel 架构，给出配置示例，说明 DM 策略选择，引用 Peter 的 Less is More 模型"
+  }
+]

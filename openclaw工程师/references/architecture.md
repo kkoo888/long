@@ -75,3 +75,76 @@ DM 策略：`pairing`（默认）/ `allowlist` / `open` / `disabled`
 - 同一 WS 服务器，`role: "node"`
 - 声明 caps（camera/canvas/screen/location）和 commands
 - 设备配对制：新设备需审批，签发 deviceToken
+
+---
+
+## 新增架构层（2026）
+
+### ACP 层（Agent Client Protocol）
+
+```
+Gateway ──ACP──→ Claude Code / Codex / Gemini CLI / OpenCode
+                    │
+              ┌─────┼─────┐
+              ▼     ▼     ▼
+           task   thread   persistent
+           (一次) (绑定)   (持久会话)
+```
+
+- ACP 后端插件管理外部 harness 的生命周期
+- Thread-bound 模式：thread 绑定 ACP 会话，消息自动路由
+- 与 Sub-agent 共用 `sessions_spawn` 工具，通过 `runtime` 区分
+
+### Sub-agent 层
+
+```
+主 Agent ──spawn──→ Sub-agent 1 (独立会话)
+                ──spawn──→ Sub-agent 2 (独立会话)
+                ──spawn──→ Sub-agent 3 (独立会话)
+                    │
+                    ▼
+              announce 结果回主 Agent chat
+```
+
+- 每个 sub-agent 独立 session、独立 token 用量
+- 完成后自动 announce 结果
+- 可配置模型、thinking level、超时
+
+### Multi-Agent 层
+
+```
+Gateway (单进程)
+├── Agent: personal (workspace-personal/)
+├── Agent: work (workspace-work/)
+└── Agent: dev (workspace-dev/)
+    ↑
+    bindings 路由入站消息到对应 Agent
+```
+
+### Hooks 层
+
+```
+事件源 (/new /reset /stop lifecycle)
+    │
+    ▼
+Hook Discovery (自动发现)
+    │
+    ▼
+Hook Execution (TypeScript 函数)
+    │
+    ▼
+效果 (保存记忆/记录日志/触发自动化)
+```
+
+### Sandbox 层
+
+```
+Gateway (宿主机)
+    │
+    ├── 工具执行 ──→ Docker 容器 (沙箱)
+    │                  ├── exec
+    │                  ├── read/write
+    │                  └── browser (可选)
+    │
+    └── elevated 工具 ──→ 宿主机执行 (绕过沙箱)
+```

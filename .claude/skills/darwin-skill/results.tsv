@@ -4,3 +4,7 @@ timestamp	commit	skill	old_score	new_score	status	dimension	note	eval_mode
 2026-06-07T04:59	c2cddcf	RAG工程师	80.6	84.7	keep	dim2+dim5+dim7	补输入输出验收标准+去AI腔	full_test
 2026-06-07T05:15	baseline	python工程师	-	72.4	baseline	-	5个测试prompt全覆盖	full_test
 2026-06-07T05:18	HEAD	python工程师	72.4	84.8	keep	多维度	6大能力板块+检查点+红灯+if-then	full_test
+2026-06-10T04:20	baseline	openclaw工程师	-	76	baseline	-	9维基线评估	dry_run
+2026-06-10T04:25	4b56f34	openclaw工程师	76	92	keep	多维度	补全ACP/Sub-agent/Multi-Agent/Hooks/Sandbox/ClawHub六大新特性+更新架构+踩坑表	dry_run
+2026-06-10T04:28	95a8ac2	openclaw工程师	92	93.2	keep	dim4	补入3个显性CHECKPOINT/STOP标记	dry_run
+2026-06-10T04:40	0dc9d98	openclaw工程师	93.2	94.1	keep	多维度	补全Memory/ModelFailover/Compaction/Bootstrap四大运行时	dry_run

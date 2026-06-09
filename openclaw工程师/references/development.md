@@ -97,3 +97,145 @@ openclaw doctor --fix  # 自动修复
 | Agent 不读 references/ | references 是按需加载的，Agent 需要主动 read | 在 SKILL.md body 中明确指示"先读 references/xxx.md" | 模型4 |
 | 配置热重载没反应 | 修改的不是 `~/.openclaw/openclaw.json` | 确认文件路径，检查 `openclaw logs` | 启发式1 |
 | 多个 Skill 冲突 | 同名 Skill，workspace 和 managed 都有 | `ls ~/.openclaw/skills/` + `<workspace>/skills/` 检查，删除不需要的 | 模型4 |
+
+---
+
+## 场景6：ACP 会话开发（2026新增）
+
+**Peter 式原则**：通用图灵机——一个 Gateway 调度任何编程 Agent。
+**对应模型**：模型1（Agentic Engineering）— 开发者从编码者变为编排者。
+
+### 接入 Claude Code
+```bash
+# 确保 ACP 启用
+openclaw config set acp.enabled true
+
+# 在 chat 中请求
+"用 Claude Code 跑这个任务"
+→ OpenClaw 自动路由到 ACP runtime
+```
+
+### 接入 Codex
+```bash
+/acp spawn codex --mode persistent --thread auto
+/acp status
+/acp steer "聚焦日志优化"
+```
+
+### 一次性 vs 持久
+
+| 模式 | 命令 | 适用 |
+|------|------|------|
+| 一次性 | `sessions_spawn(runtime:"acp", mode:"run")` | 单个任务 |
+| 持久 | `sessions_spawn(runtime:"acp", thread:true, mode:"session")` | 持续开发 |
+
+---
+
+## 场景7：Sub-agent 并行编排（2026新增）
+
+**Peter 式原则**：Blast Radius — 把大任务拆成多个小炸弹并行。
+**对应模型**：启发式2（Blast Radius 评估）
+
+### 典型用法
+```javascript
+// 并行研究三个方案
+sessions_spawn({ task: "方案A: 研究 WebSocket 实现", mode: "run" })
+sessions_spawn({ task: "方案B: 研究 SSE 实现", mode: "run" })
+sessions_spawn({ task: "方案C: 研究 Long Polling 实现", mode: "run" })
+// 三个 sub-agent 并行完成后各自 announce 结果
+```
+
+### 成本控制
+```json5
+{
+  agents: {
+    defaults: {
+      subagents: {
+        model: "anthropic/claude-haiku-3.5",  // 便宜模型
+        thinking: "low",
+        runTimeoutSeconds: 300                // 5分钟超时
+      }
+    }
+  }
+}
+```
+
+---
+
+## 场景8：Hooks 自动化（2026新增）
+
+**Peter 式原则**：Close the Loop 的自动化版。
+**对应模型**：启发式1（Close the Loop）
+
+### 启用内置 Hooks
+```bash
+openclaw hooks enable session-memory    # /new 时自动保存记忆
+openclaw hooks enable command-logger    # 记录所有命令
+openclaw hooks list                     # 查看状态
+```
+
+### Webhook 外部触发
+```bash
+openclaw webhooks add github-ci         # GitHub CI 回调
+openclaw webhooks add gmail-notify      # Gmail 通知
+```
+
+---
+
+## 场景9：Multi-Agent 部署（2026新增）
+
+**Peter 式原则**：一个 Gateway 管所有 — Less is More。
+**对应模型**：模型4（Less is More）
+
+### 添加 Agent
+```bash
+openclaw agents add work                # 添加 work Agent
+openclaw agents list --bindings         # 查看绑定
+```
+
+### 配置隔离
+```json5
+{
+  agents: {
+    list: [
+      { id: "personal", workspace: "~/.openclaw/workspace-personal" },
+      { id: "work", workspace: "~/.openclaw/workspace-work", sandbox: { mode: "all" } }
+    ]
+  }
+}
+```
+
+---
+
+## 场景10：Sandbox 安全隔离（2026新增）
+
+**Peter 式原则**：信任自动化，但用容器兜底。
+**对应模型**：模型5（信任自动化 > 权限控制）
+
+### 配置
+```json5
+{
+  agents: {
+    defaults: {
+      sandbox: {
+        mode: "non-main",    // 非主会话沙箱
+        scope: "session",    // 每会话一个容器
+        workspaceAccess: "full"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 新增踩坑速查（2026）
+
+| 症状 | 原因 | 解法 | 对应模型 |
+|------|------|------|---------|
+| ACP 会话不启动 | acp.enabled 未设 | `openclaw config set acp.enabled true` | 模型4 |
+| Sub-agent 结果没 announce | delivery 失败 | `/subagents log` 查看，检查 channel | 启发式1 |
+| 多 Agent 消息路由错 | bindings 配置错 | `openclaw agents list --bindings` | 模型4 |
+| Hook 未触发 | 未 enable | `openclaw hooks enable <name>` | 启发式1 |
+| 沙箱内文件找不到 | workspaceAccess 配置 | 检查 sandbox.workspaceAccess | 模型5 |
+| Skill 在 Agent A 有 B 没有 | 放在 A 的 workspace/skills/ | 移到 ~/.openclaw/skills/ 共享 | 模型4 |
