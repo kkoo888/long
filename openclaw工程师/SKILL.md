@@ -3,7 +3,7 @@ name: peter-steinberger-perspective
 description: |
   Peter Steinberger (@steipete) 的思维框架与表达方式。基于深度调研提炼6个核心心智模型、8条决策启发式和完整表达DNA。
   用途：作为思维顾问，用Peter的视角分析技术决策、产品方向、AI工程实践、开源治理、OpenClaw二次开发。
-  触发词：「Peter视角」「steipete」「Peter模式」「agentic工程」「CLI优先」「Agent并行化」「openclaw开发」「写个skill」「配置gateway」。
+  触发词：「Peter视角」「steipete」「Peter模式」「agentic工程」「CLI优先」「Agent并行化」「openclaw开发」「写个skill」「配置gateway」「ACP」「sub-agent」「子Agent」「hooks」「沙箱」「clawhub」「多Agent」。
   不在用户只是普通问开发工具或编程问题时触发——只在明确想要Peter式工程哲学或OpenClaw二次开发时激活。
 ---
 
@@ -249,13 +249,20 @@ Peter不会装懂。遇到不熟悉的领域时：
 
 **Skill 运行时**：加载（扫描 frontmatter）→ 注入（system prompt）→ 执行（Agent 按需 read references/）→ 热重载（文件变更自动刷新）
 
+**2026 新增架构层**：
+- **ACP 层**：Gateway ──ACP──→ Claude Code / Codex / Gemini CLI（外部 Agent 调度）
+- **Sub-agent 层**：主 Agent ──spawn──→ 并行子 Agent ──announce──→ 结果回传
+- **Multi-Agent 层**：单 Gateway 多 Agent（隔离 workspace + bindings 路由）
+- **Hooks 层**：事件驱动（/new /reset /stop lifecycle）→ 自动化脚本
+- **Sandbox 层**：Docker 容器隔离工具执行，elevated 绕过
+
 ---
 
 ## 二次开发实操
 
 > 📖 完整实操指南详见 `references/development.md`
 
-**五大场景速查**：
+**十大场景速查**：
 
 | 场景 | 核心命令/原则 |
 |------|-------------|
@@ -264,6 +271,11 @@ Peter不会装懂。遇到不熟悉的领域时：
 | 调试排障 | `openclaw doctor` / `openclaw status` / `openclaw logs` |
 | Cron & Heartbeat | Heartbeat 适合轮询，Cron 适合精确定时 |
 | Node 设备 | `nodes` 工具配对，声明 caps，签发 deviceToken |
+| ACP 会话 | `sessions_spawn(runtime:"acp")` → 外部 Agent 调度 → `/acp` 管理 |
+| Sub-agent 编排 | `sessions_spawn(mode:"run")` → 并行任务 → announce 结果 |
+| Multi-Agent | `openclaw agents add` → bindings 路由 → 隔离 workspace |
+| Hooks 自动化 | `openclaw hooks enable` → 事件驱动 → 自定义 TypeScript 脚本 |
+| Sandbox 隔离 | `sandbox.mode: "non-main"` → Docker 容器隔离 → elevated 绕过 |
 
 **常见踩坑速查**：
 
@@ -273,6 +285,11 @@ Peter不会装懂。遇到不熟悉的领域时：
 | 配置改了没生效 | `openclaw doctor` 诊断，确认文件路径 |
 | 脚本不执行 | `chmod +x` + 检查 shebang 行 |
 | Agent 不读 references/ | 在 SKILL.md body 中明确指示 read |
+| ACP 会话不启动 | 检查 `acp.enabled` 配置 |
+| Sub-agent 结果没回来 | `/subagents log` 查看，检查 delivery |
+| 多 Agent 消息路由错 | `openclaw agents list --bindings` |
+| Hook 未触发 | `openclaw hooks enable <name>` |
+| 沙箱内文件找不到 | 检查 `sandbox.workspaceAccess` |
 
 ---
 
@@ -367,6 +384,11 @@ Peter不会装懂。遇到不熟悉的领域时：
 | 不写失败分支 | 每个关键步骤加"如果X→Y" | Agent 遇到异常无指引 |
 | 跳过 `openclaw doctor` 验证 | 改配置必跑 doctor | 静默失败最难查 |
 | 同时装多个同名 Skill | `ls skills/` 检查，删冲突的 | 加载行为不可预测 |
+| ACP 不开就用 | 先 `openclaw config set acp.enabled true` | 否则 sessions_spawn 报错 |
+| Sub-agent 不限深度 | 配置 `subagents.maxDepth` | 嵌套爆炸、token 爆炸 |
+| 所有会话都沙箱 | 开发时用 `mode: "non-main"` | 全沙箱影响开发体验 |
+| Hook 不 enable 就指望它工作 | `openclaw hooks enable <name>` | 默认不启用 |
+| 跨 Agent 共享 agentDir | 各 Agent 独立 agentDir | auth/session 冲突 |
 
 ## 智识谱系
 
