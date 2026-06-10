@@ -1,0 +1,5 @@
+timestamp	commit	skill	old_score	new_score	status	dimension	note	eval_mode
+2026-06-10T17:18	ea97dd2	python工程师	-	68	baseline	-	基线评估：结构完整但存在冗余、部分维度可执行性不足	dry_run
+2026-06-10T17:28	e1d620a	python工程师	68	77	keep	dim5可执行具体性	消除软化措辞+补充输出格式模板+降级策略具体化	dry_run
+2026-06-10T17:28	52e386f	python工程师	77	82	keep	dim3失败模式编码	补充三段式fallback+能力圈输出格式表+固定回复模板	dry_run
+2026-06-10T17:28	39d96aa	python工程师	82	86	keep	dim1 Frontmatter质量	description精简至<1024字符+保留触发词和核心信息	dry_run
