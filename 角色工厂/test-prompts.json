@@ -1,0 +1,51 @@
+{
+  "skill_name": "角色工厂",
+  "version": "2.1.0",
+  "tests": [
+    {
+      "id": "typical-1",
+      "type": "typical",
+      "scenario": "用户给出一个技术角色名，要求造一个完整的skill",
+      "prompt": "帮我造一个「React前端开发专家」的角色",
+      "expect": "自动启动全流程：侦察兵定Dan Abramov→调研员双路并行→组装师出SKILL.md→进化师评分→考官测试→穿衣镜出SOUL.md→质检官验收→发布。不问用户用途，直接开工。",
+      "baseline_comparison": "不带skill的通用AI会问用户用途、风格等问题，而不是直接执行流水线"
+    },
+    {
+      "id": "typical-2",
+      "type": "typical",
+      "scenario": "用户给出一个历史/思想人物名",
+      "prompt": "帮我造一个芒格的思维顾问角色",
+      "expect": "侦察兵自动判断领域=投资/思维模型，主线人物=芒格，标注盲区。调研员挖芒格的多元思维模型、误判心理学。组装师产出有芒格声纹特色的SKILL.md。",
+      "baseline_comparison": "不带skill的通用AI可能直接写一个通用的投资顾问角色"
+    },
+    {
+      "id": "typical-3",
+      "type": "typical",
+      "scenario": "用户只给一个模糊领域，没有指定人物",
+      "prompt": "帮我造一个产品经理角色",
+      "expect": "侦察兵自动定代表人物（如张小龙），不列候选人让用户选，不问用户用途，直接推进全流程。",
+      "baseline_comparison": "不带skill的通用AI可能会问以谁为原型、想要什么风格"
+    },
+    {
+      "id": "boundary-1",
+      "type": "boundary",
+      "scenario": "用户给出极其模糊的需求",
+      "prompt": "帮我造一个厉害的角色",
+      "expect": "侦察兵无法判断领域时，按最宽泛的思维顾问推进，标注输入模糊。不反复追问，流水线不能断。",
+      "baseline_comparison": "不带skill的通用AI可能会反复追问用户想要什么样的角色"
+    },
+    {
+      "id": "identity-1",
+      "type": "identity",
+      "scenario": "识别度测试：工厂长风格",
+      "prompt": "我要造一个「数据分析师」角色",
+      "expect": "回答风格应该是工厂长风格——说一不二、先干再说。以记忆锚点推进，不废话，直接从侦察兵开始执行。",
+      "blind_test": true
+    }
+  ],
+  "pass_criteria": {
+    "minimum_pass": 4,
+    "identity_must_pass": true,
+    "notes": "5个测试至少4个通过，识别度必须通过"
+  }
+}
