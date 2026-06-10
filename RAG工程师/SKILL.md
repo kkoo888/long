@@ -93,10 +93,87 @@ documents = SimpleDirectoryReader(
 **选型决策**：
 - 纯文本文档、预算有限 → `PDFReader` / `SimpleDirectoryReader`（免费，本地运行）
 - 含表格/图片/扫描件/复杂排版 → `LlamaParse`（付费托管，效果显著更好）
-- 混合场景 → `SimpleDirectoryReader` + `file_extractor` 按格式分发（简单格式用原生，复杂格式用 LlamaParse）
+- 含复杂排版但不想付费 → 开源方案组合（见下方免费方案对比表）
+- 混合场景 → `SimpleDirectoryReader` + `file_extractor` 按格式分发
+
+**⭐ 免费开源文档解析方案对比**：
+
+> 不是所有场景都需要付费方案。以下开源工具在大多数场景下能达到 LlamaParse 80-90% 的效果，且完全免费、本地部署。
+
+| 方案 | 核心能力 | 支持格式 | 表格 | 图片/OCR | 速度 | 适用场景 |
+|------|---------|---------|------|---------|------|---------|
+| **Unstructured.io** | 全格式文档解析，RAG 专用 | PDF/DOCX/PPTX/HTML/图片/Markdown 等 40+ 格式 | ✅ 结构化输出 | ✅ 内置 OCR | 中 | **免费首选**，格式最多，社区活跃 |
+| **Docling**（IBM） | 文档结构化解析，保留版面布局 | PDF/DOCX/PPTX/HTML/图片 | ✅ 表格+公式识别 | ✅ 内置 OCR | 中 | 学术论文、技术文档，版面还原度高 |
+| **Marker** | PDF→Markdown 转换器 | PDF | ✅ Markdown 表格 | ✅ 内置 OCR | 快 | 纯 PDF 场景，输出干净 Markdown |
+| **PyMuPDF4LLM** | 基于 MuPDF 的轻量解析 | PDF | ⚠️ 基础支持 | ❌ 无 OCR | 极快 | 纯文本 PDF，追求速度 |
+| **Apache Tika** | 老牌文档解析器 | 1000+ 格式（最全） | ⚠️ 基础支持 | ❌ 需外接 OCR | 中 | 格式极杂的场景兜底 |
+| **Surya** | OCR 专用，精度超 Tesseract | 图片/PDF 扫描件 | ✅ 表格 OCR | ✅ 主力 OCR | 中 | 扫描件为主的场景 |
+| **PaddleOCR**（百度） | 中文 OCR 精度最高 | 图片/PDF 扫描件 | ✅ 表格 OCR | ✅ 中文首选 | 快 | 中文扫描件/拍照文档 |
+
+**免费方案推荐组合（覆盖 90% 场景）**：
+
+```
+方案 A（通用推荐）：
+  Unstructured.io（全格式解析）+ Surya/PaddleOCR（扫描件兜底）
+
+方案 B（学术/技术文档）：
+  Docling（版面还原）+ Marker（PDF→Markdown）
+
+方案 C（纯 PDF + 追求速度）：
+  PyMuPDF4LLM（快速解析）+ PaddleOCR（扫描件兜底）
+```
+
+**Unstructured.io 使用示例**：
+```python
+# pip install unstructured[pdf,docx,pptx]
+from unstructured.partition.auto import partition
+
+# 自动检测格式并解析
+elements = partition(filename="report.pdf")
+# 输出结构化元素列表（Title、NarrativeText、Table、Image 等）
+for el in elements:
+    print(f"[{el.category}] {el.text[:100]}")
+
+# 表格自动识别为 Table 元素
+tables = [el for el in elements if el.category == "Table"]
+
+# 与 LlamaIndex 集成
+from llama_index.core import Document
+documents = [Document(text=str(el), metadata={"type": el.category}) for el in elements]
+```
+
+**Docling 使用示例**：
+```python
+# pip install docling
+from docling.document_converter import DocumentConverter
+
+converter = DocumentConverter()
+result = converter.convert("paper.pdf")
+# 输出 Markdown（保留表格、公式、图片描述）
+markdown_output = result.document.export_to_markdown()
+```
+
+**Marker 使用示例**：
+```python
+# pip install marker-pdf
+from marker.converters.pdf import PdfConverter
+
+converter = PdfConverter(artifact_dict={})
+rendered = converter("scan.pdf")
+markdown_output = rendered.markdown  # 干净的 Markdown 输出
+```
+
+**LlamaParse vs 免费方案选择**：
+| 条件 | 推荐 |
+|------|------|
+| 预算充足 + 追求极致效果 + 托管省心 | LlamaParse |
+| 预算有限 + 技术团队可维护 | Unstructured.io + Surya |
+| 纯中文扫描件为主 | PaddleOCR（中文精度最高） |
+| 学术论文/技术文档 | Docling（版面还原最好） |
+| 快速原型验证 | PyMuPDF4LLM（最快） |
 
 **失败处理**：
-- 如果 Loader 解析失败（PDF 扫描件/加密）→ 优先尝试 LlamaParse（内置 OCR）；若仍失败 → 降级为 Tesseract/PaddleOCR
+- 如果 Loader 解析失败（PDF 扫描件/加密）→ 优先尝试 Unstructured.io 或 Marker（免费，内置 OCR）；扫描件中文为主 → PaddleOCR；若仍失败 → 降级为 Tesseract/Surya
 - 如果去重阈值过高导致误删 → 降低 `dedup_threshold` 从 0.95 到 0.90
 - 如果抽检通过率 < 90% → 回到 1.3 调整清洗参数
 
