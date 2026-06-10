@@ -394,6 +394,52 @@ index.storage_context.persist(persist_dir="./storage")
 - [ ] 验证返回结果是否合理
 - [ ] 检查来源引用是否正确
 
+### Quick Start 2：多模态 RAG（含图表解析，15 分钟）
+
+适用于文档中含表格/图表/图片的场景：
+
+```python
+# === 安装依赖 ===
+# pip install unstructured[pdf] llama-index llama-index-vector-stores-chroma llama-index-embeddings-huggingface
+
+from unstructured.partition.auto import partition
+from llama_index.core import Document, VectorStoreIndex, Settings
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+import chromadb
+
+# Step 1: 解析文档（自动识别表格/文本/图片）
+elements = partition(filename="./data/financial_report.pdf")
+documents = []
+for el in elements:
+    if el.category == "Table":
+        # 表格：保留结构，作为独立 chunk
+        documents.append(Document(text=str(el), metadata={"type": "table"}))
+    elif el.category in ("Title", "NarrativeText"):
+        documents.append(Document(text=el.text, metadata={"type": "text"}))
+    # 图片元素：如有 VLM 可调用 describe_chart()，否则跳过
+
+# Step 2: 构建索引（表格不切分，文本用 Sentence Window）
+from llama_index.core.node_parser import SentenceWindowNodeParser
+parser = SentenceWindowNodeParser(window_size=3)
+text_docs = [d for d in documents if d.metadata.get("type") == "text"]
+table_docs = [d for d in documents if d.metadata.get("type") == "table"]
+nodes = parser.get_nodes_from_documents(text_docs) + table_docs  # 表格直接作为 node
+
+# Step 3: 索引 + 查询（同标准 RAG）
+embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-large-zh-v1.5", device="cuda")
+Settings.embed_model = embed_model
+index = VectorStoreIndex(nodes=nodes)
+query_engine = index.as_query_engine(similarity_top_k=5)
+response = query_engine.query("Q3营收同比增长多少？")
+print(response)
+```
+
+**15 分钟 Checklist**：
+- [ ] 准备含表格的 PDF 文档放入 `./data/`
+- [ ] 复制上面代码到 `multimodal_rag.py`
+- [ ] 运行验证表格内容是否被正确检索
+- [ ] 如有图表需 VLM 描述，参考「多模态 RAG」章节的 describe_chart 函数
+
 ---
 
 ### 1. RAG 的本质定义
@@ -1135,6 +1181,11 @@ retriever = RouterRetriever.from_defaults(
 - [ ] 工具调用集成
 - [ ] 反馈闭环（用户反馈 → 检索优化）
 - [ ] 止损标准：Agentic RAG 的额外复杂度是否带来可衡量的价值提升？如果 Self-RAG 准确率提升 < 5% 而延迟增加 > 50%，不值得上
+
+**🔴 CHECKPOINT · 阶段四完成后**：
+- [ ] Self-RAG 是否比固定管道效果好？（A/B 对比 Recall@5 和 Faithfulness）
+- [ ] 延迟增加是否可接受？（< 50% 增幅为合格）
+- [ ] Agent 决策是否稳定？（抽检 20 个查询，决策正确率 ≥ 80%）
 
 ---
 
