@@ -1,8 +1,8 @@
 ---
 name: rag-best-practices
-version: 2.0.0
-description: RAG 实现最佳实践参考手册。当用户提到"搭建RAG"、"RAG优化"、"检索增强"、"向量检索"、"知识库问答"、"文档问答"、"RAG调试"、"RAG评估"、"embedding选型"、"分块策略"时触发。融合 LlamaIndex 五阶段架构（Loading→Indexing→Storing→Querying→Evaluation）、Jerry Liu Sentence Window Retrieval、Anthropic Contextual Retrieval、Harrison Chase LCEL 编排等行业最佳实践。
-tags: [RAG, 检索增强生成, 向量数据库, LLM, 架构设计, GraphRAG, 多模态RAG, AgenticRAG, 安全性, LlamaIndex, 混合检索, Reranking]
+version: 2.1.0
+description: RAG 实现最佳实践参考手册。当用户提到"搭建RAG"、"RAG优化"、"检索增强"、"向量检索"、"知识库问答"、"文档问答"、"RAG调试"、"RAG评估"、"embedding选型"、"分块策略"时触发。融合 LlamaIndex 五阶段架构（Loading→Indexing→Storing→Querying→Evaluation）、LlamaParse 复杂文档解析、CRAG/Adaptive RAG 纠正与自适应检索、LazyGraphRAG 低成本图检索、Late Chunking 跨块上下文等行业最新实践。
+tags: [RAG, 检索增强生成, 向量数据库, LLM, 架构设计, GraphRAG, LazyGraphRAG, 多模态RAG, AgenticRAG, CRAG, AdaptiveRAG, 安全性, LlamaIndex, LlamaParse, 混合检索, Reranking, LateChunking]
 ---
 
 # RAG 实现参考手册
@@ -44,14 +44,59 @@ Phase 1 Loading → Phase 2 Indexing → Phase 3 Storing → Phase 4 Querying �
 | 1.4 质量抽检 | 清洗后 Document | 随机抽 10 份检查内容完整性 | 抽检报告 | 通过率 ≥ 90% |
 
 **LlamaIndex 加载器选型**：
-- PDF → `PDFReader`（简单）或 `LlamaParse`（含表格/图片，效果最佳）
+- PDF → `PDFReader`（简单文本 PDF）或 `LlamaParse`（复杂 PDF，含表格/图片/公式，效果最佳，见下方详解）
 - Markdown → `MarkdownNodeParser`（保留标题层级结构）
 - 网页 → `BeautifulSoupWebReader` 或 `TrafilaturaReader`
 - 数据库 → `DatabaseReader`
 - 统一入口 → `SimpleDirectoryReader(input_dir, recursive=True)`
 
+**⭐ LlamaParse 深度推荐（2025 LlamaIndex 杀手级功能）**：
+
+> 来源：LlamaIndex 官方文档，LlamaParse 支持 90+ 文件格式，是复杂文档解析的首选方案
+
+LlamaParse 是 LlamaIndex 官方的托管文档解析服务，专为 RAG 场景优化。相比原生 Reader 的核心优势：
+
+| 能力 | 原生 PDFReader | LlamaParse |
+|------|---------------|------------|
+| 表格解析 | 丢失结构，变成纯文本 | 保留表格结构，输出 Markdown/JSON 表格 |
+| 图片/图表 | 跳过 | 提取图片描述或转为文本 |
+| 扫描件 PDF | 无法处理 | 内置 OCR，自动识别 |
+| 多栏排版 | 混乱 | 正确识别多栏布局 |
+| 公式 | 丢失 | LaTeX 格式输出 |
+| 支持格式 | PDF | 90+ 格式（PDF/DOCX/PPTX/XLSX/HTML/图片等） |
+
+**使用方式**：
+```python
+from llama_index.core import SimpleDirectoryReader
+from llama_parse import LlamaParse
+
+# 方式 1：直接用 LlamaParse 解析器
+parser = LlamaParse(
+    result_type="markdown",       # 输出格式：markdown / text / json
+    num_workers=4,                # 并行解析线程
+    verbose=True,
+    language="zh",                # 指定语言提升 OCR 精度
+)
+documents = parser.load_data("./data/report.pdf")
+
+# 方式 2：与 SimpleDirectoryReader 集成（推荐，自动按格式分发）
+from llama_parse import LlamaParse
+parser = LlamaParse(result_type="markdown")
+file_extractor = {".pdf": parser, ".docx": parser, ".pptx": parser}
+documents = SimpleDirectoryReader(
+    input_dir="./data",
+    recursive=True,
+    file_extractor=file_extractor,
+).load_data()
+```
+
+**选型决策**：
+- 纯文本文档、预算有限 → `PDFReader` / `SimpleDirectoryReader`（免费，本地运行）
+- 含表格/图片/扫描件/复杂排版 → `LlamaParse`（付费托管，效果显著更好）
+- 混合场景 → `SimpleDirectoryReader` + `file_extractor` 按格式分发（简单格式用原生，复杂格式用 LlamaParse）
+
 **失败处理**：
-- 如果 Loader 解析失败（PDF 扫描件/加密）→ 降级为 OCR（Tesseract/PaddleOCR）
+- 如果 Loader 解析失败（PDF 扫描件/加密）→ 优先尝试 LlamaParse（内置 OCR）；若仍失败 → 降级为 Tesseract/PaddleOCR
 - 如果去重阈值过高导致误删 → 降低 `dedup_threshold` 从 0.95 到 0.90
 - 如果抽检通过率 < 90% → 回到 1.3 调整清洗参数
 
@@ -328,14 +373,56 @@ RAG 的原理是将两种"记忆"结合：
 | **Semantic** | 基于 embedding 相似度 | 长篇文章、主题混杂文档 | LlamaIndex `SemanticSplitterNodeParser` | ✅ 语义连贯 / ❌ 计算开销大 |
 | **Sentence Window** | 检索时用单句，生成时扩展窗口 | 精准检索 + 完整上下文 | LlamaIndex `SentenceWindowNodeParser` | ✅ 检索精准+生成完整 / ⭐ Jerry Liu 独创 |
 | **Hierarchical** | 多层级（摘要→段落→句子） | 复杂长文档 | LlamaIndex `HierarchicalNodeParser` | ✅ 支持递归检索 / ❌ 架构复杂 |
-| **Late Chunking** | 先 embedding 后切分 | 保留跨块上下文 | Jina AI 提出 | ✅ 保留全局语义 / ❌ 技术较新 |
+| **Late Chunking** | 先 embedding 后切分，保留跨块上下文 | 长文档、上下文敏感场景 | Jina AI 提出（2024） | ✅ 保留全局语义 / ❌ 技术较新，需 Jina Embeddings v2+ |
+
+**Late Chunking 详解**：
+
+> 来源：Jina AI, "Late Chunking: Contextual Chunk Embeddings Using Long-Context Embedding Models", 2024
+
+传统分块的痛点：先切分 → 再 embedding，每个 chunk 独立编码，丢失跨块上下文。例如同一段话被切成两半后，各自的 embedding 都不完整。
+
+Late Chunking 的思路：**先用长上下文 embedding 模型对整篇文档编码，得到每个 token 的上下文感知表示，再按 chunk 边界切分并池化（mean pooling）得到 chunk embedding**。
+
+```
+传统流程：文档 → 切分 → 每个 chunk 独立 embedding（丢失上下文）
+Late Chunking：文档 → 整体 embedding（保留上下文）→ 按边界切分 → 池化得到 chunk embedding
+```
+
+**适用条件**：
+- 需要长上下文 embedding 模型（如 Jina Embeddings v2，支持 8192 tokens）
+- 文档中跨段落引用、指代消解较多
+- 对检索精度要求高
+
+**实现示例**（Jina AI 官方方案）：
+```python
+from jina import Client
+
+client = Client(port=12345)
+# Step 1: 整篇文档做长上下文编码（token-level embeddings）
+token_embeddings = client.encode(
+    [full_document_text],
+    max_length=8192,
+    return_type='token'
+)
+# Step 2: 按 chunk 边界切分后 mean pooling
+chunk_embeddings = []
+for start, end in chunk_boundaries:
+    chunk_emb = token_embeddings[start:end].mean(dim=0)
+    chunk_embeddings.append(chunk_emb)
+```
 
 **决策指南**：
+- 如果文档主要是独立段落（FAQ、产品手册）→ 传统分块足够
+- 如果文档有大量跨段落引用（法律合同、学术论文、长篇报告）→ 考虑 Late Chunking
+- 如果没有 Jina 模型 → 用 Sentence Window 作为替代方案（思路不同但效果类似）
+
+**决策指南（总体）**：
 1. **快速验证** → Fixed-Size（512 tokens，overlap 10%）
 2. **结构化文档（Markdown/HTML）** → Document-Based
 3. **需要高精度检索** → Sentence Window（LlamaIndex）或 Semantic
 4. **长文档、多主题** → Hierarchical
-5. **生产环境** → Recursive + Reranking
+5. **跨段落引用密集** → Late Chunking（需 Jina Embeddings v2+）
+6. **生产环境** → Recursive + Reranking
 
 ### 二、检索策略（Retrieval）
 
@@ -375,7 +462,7 @@ RAG 的原理是将两种"记忆"结合：
 | 方法 | 原理 | 速度 | 精度 | 代表 |
 |------|------|------|------|------|
 | **Cross-Encoder** | Query + Doc 联合编码打分 | 慢 | 高 | Cohere Rerank v3.5、BGE-Reranker |
-| **ColBERT** | Late interaction，token 级别交互 | 中 | 高 | ColBERT v2（兼具检索与重排能力，主流用于第一阶段检索） |
+| **ColBERT** | Late interaction，token 级别交互 | 中 | 高 | ColBERT v2（兼具检索与重排能力，2025 年主流用法已从重排转向第一阶段检索器——用 ColBERT 替代传统向量检索，精度显著优于单向量模型） |
 | **RankLLM** | 用 LLM 做排序 | 最慢 | 最高 | RankGPT |
 | **RRF** | 基于排名的融合 | 最快 | 中 | 纯算法，无需模型 |
 
@@ -420,7 +507,28 @@ RAG 的原理是将两种"记忆"结合：
 
 **代表实现**：Microsoft GraphRAG、LlamaIndex KnowledgeGraphIndex、Neo4j + LangChain
 
-**决策指南**：先问自己"查询是否依赖实体间关系？"——是→考虑 GraphRAG；否→传统 RAG 更合适。
+**⭐ LazyGraphRAG（2025 成本革命）**：
+
+> 来源：Microsoft Research, "LazyGraphRAG", 2025
+
+传统 GraphRAG 的最大痛点：**索引构建成本极高**（需要对全量文档做实体抽取+关系构建），动辄数小时甚至数天，让大多数团队望而却步。
+
+LazyGraphRAG 的核心创新：**延迟图构建，按需索引**。不在预处理阶段构建完整知识图谱，而是在查询时才对相关文档子集做轻量级图抽取。
+
+| 维度 | 传统 GraphRAG | LazyGraphRAG |
+|------|-------------|-------------|
+| 索引成本 | 极高（全量文档实体抽取） | 极低（仅在查询时按需抽取） |
+| 索引时间 | 小时~天级 | 秒级（查询时） |
+| 查询质量 | 高（完整图谱） | 接近传统 GraphRAG（90%+ 场景可比） |
+| 适用规模 | 中小文档集（< 10 万页） | 大规模文档集（百万页级） |
+| 代表场景 | 企业内部知识图谱 | 大规模文档库的关系发现 |
+
+**决策指南**：
+- 文档量 < 1 万页 + 需要频繁查询实体关系 → 传统 GraphRAG（值得预构建成本）
+- 文档量大 + 查询频率低 + 想试水 GraphRAG → LazyGraphRAG（低成本试错）
+- 不确定是否需要 GraphRAG → 先用传统 RAG + 混合检索，验证效果后再决定
+
+**决策指南**：先问自己"查询是否依赖实体间关系？"——是→考虑 GraphRAG；否→传统 RAG 更合适。如果成本是瓶颈 → 优先考虑 LazyGraphRAG。
 
 > **冷静评价（2025 业界共识）**：GraphRAG 概念热度高，但实际落地案例有限。图构建成本高、更新维护复杂、对非结构化文本的实体抽取准确率不稳定。建议：除非场景明确需要实体关系推理，否则传统 RAG + 混合检索更实用。
 
@@ -487,6 +595,8 @@ RAG 的原理是将两种"记忆"结合：
 | **Post-Retrieval 增强** | 检索后优化结果 | Reranking、Contextual Compression | 让结果更干净 |
 | **Iterative RAG** | 多轮检索-生成 | FLARE（Jiang et al., 2023） | 模型主动决定何时检索 |
 | **Self-RAG** | 模型自我反思 | Asai et al., 2023 | 模型判断是否需要检索、检索结果是否相关 |
+| **CRAG** | 检索后质量评估 | Yan et al., 2024 | 先评估检索质量，不合格则触发 web 搜索补充 |
+| **Adaptive RAG** | 查询前复杂度分类 | Jeong et al., 2024 | 按查询复杂度动态选择：不检索/单轮 RAG/多轮迭代 RAG |
 
 ### 3. 上下文处理之争
 
@@ -581,8 +691,65 @@ RAG 的原理是将两种"记忆"结合：
 - Self-RAG（Asai et al., 2023）— 模型自我反思是否需要检索
 - FLARE（Jiang et al., 2023）— 主动检索增强生成
 - CRAG（Corrective RAG）— 纠正式 RAG
+- Adaptive RAG — 自适应检索策略选择
 
-> **冷静评价（2025 业界共识）**：Agentic RAG 是最前沿的方向，但"理想很丰满，现实很骨感"。主要挑战：Agent 决策不稳定（有时不该检索时检索、该检索时不检索）、多轮迭代导致延迟显著增加、调试困难。建议：先用 Advanced RAG 打好基础，只有在需要复杂推理和多步决策时才考虑 Agentic RAG。
+**⭐ CRAG（Corrective RAG）详解**：
+
+> 来源：Yan et al., "Corrective Retrieval Augmented Generation", 2024
+
+CRAG 的核心思想：**不信任检索结果，先评估再决策**。在传统 RAG 管道中加入一个"轻量级检索评估器"（Retrieval Evaluator），对检索到的文档打分，然后根据分数决定下一步：
+
+```
+检索到文档 → 评估器打分
+    ├─ Correct（高置信度）→ 精炼文档，去除无关部分 → 送入 LLM
+    ├─ Incorrect（低置信度）→ 触发 web 搜索补充 → 合并后送入 LLM
+    └─ Ambiguous（中等置信度）→ 同时保留原始文档 + web 搜索结果 → 送入 LLM
+```
+
+**与 Self-RAG 的区别**：
+| 维度 | Self-RAG | CRAG |
+|------|---------|------|
+| 评估时机 | 生成时逐 token 反思 | 检索后一次性评估 |
+| 开销 | 高（需要训练反思 token） | 低（轻量分类器即可） |
+| 兜底机制 | 决定是否重新检索 | 触发 web 搜索补充 |
+| 实现难度 | 较高（需特殊训练） | 较低（可用 LLM 做评估器） |
+
+**LlamaIndex 实现**：
+```python
+from llama_index.core.workflow import Workflow, step, Context
+# LlamaIndex 2025 原生支持 CRAG workflow
+# 核心：在 retrieval 后加入 correctness evaluation step
+# 如果评估为 Incorrect → 触发 web search 补充
+# 如果评估为 Ambiguous → 合并多源结果
+```
+
+**⭐ Adaptive RAG 详解**：
+
+> 来源：Jeong et al., "Adaptive-RAG: Learning to Adapt Retrieval-Augmented Large Language Models through Question Complexity", 2024
+
+Adaptive RAG 的核心思想：**不是所有问题都需要检索，根据查询复杂度动态选择策略**。
+
+```
+用户查询 → 复杂度分类器
+    ├─ 简单（常识/闲聊）→ 直接 LLM 回答，不检索（省时省成本）
+    ├─ 中等（单步事实查询）→ 单轮 RAG（标准 Naive RAG）
+    └─ 复杂（多跳推理/多文档综合）→ 多轮迭代 RAG（Agentic RAG）
+```
+
+**价值**：避免"所有查询都走完整 RAG 管道"的浪费。简单问题直接回答（< 100ms），复杂问题才启动多轮检索（> 2s）。整体系统延迟和成本大幅降低。
+
+**LlamaIndex 实现**：通过 `RouterRetriever` 实现查询路由——根据 query 特征自动选择最合适的检索器。
+
+```python
+from llama_index.core.retrievers import RouterRetriever
+# 配置多个 retriever，让 LLM 根据 query 自动选择
+retriever = RouterRetriever.from_defaults(
+    retrievers=[simple_retriever, complex_retriever],
+    select_multi=False,
+)
+```
+
+> **冷静评价（2025 业界共识）**：Agentic RAG 是最前沿的方向，但"理想很丰满，现实很骨感"。主要挑战：Agent 决策不稳定（有时不该检索时检索、该检索时不检索）、多轮迭代导致延迟显著增加、调试困难。建议：先用 Advanced RAG 打好基础，只有在需要复杂推理和多步决策时才考虑 Agentic RAG。CRAG 和 Adaptive RAG 是最实用的切入点——CRAG 解决"检索质量不可控"，Adaptive RAG 解决"所有查询一刀切"。
 
 ---
 
@@ -945,6 +1112,10 @@ RAG 系统的成本由以下部分构成：
 5. **Jiang et al.** (2023). "Active Retrieval Augmented Generation (FLARE)." arXiv:2305.06983 — 主动检索
 6. **Wang et al.** (2024). "Searching for Best Practices in Retrieval-Augmented Generation." arXiv:2407.01219 — RAG 最佳实践搜索
 7. **Edge et al.** (2024). "From Local to Global: A Graph RAG Approach to Query-Focused Summarization." Microsoft Research — GraphRAG 方法
+8. **Yan et al.** (2024). "Corrective Retrieval Augmented Generation." arXiv:2401.15884 — CRAG 纠正式 RAG
+9. **Jeong et al.** (2024). "Adaptive-RAG: Learning to Adapt Retrieval-Augmented Large Language Models through Question Complexity." arXiv:2403.14403 — 自适应 RAG
+10. **Microsoft Research** (2025). "LazyGraphRAG." — 低成本图检索，索引成本降低 99.9%
+11. **Jina AI** (2024). "Late Chunking: Contextual Chunk Embeddings Using Long-Context Embedding Models." — 先 embedding 后切分，保留跨块上下文
 
 ### 行业实践
 8. **Anthropic** (2024.09). "Contextual Retrieval" — 混合检索方案，检索失败率降低 49-67%
@@ -954,14 +1125,15 @@ RAG 系统的成本由以下部分构成：
 
 ### 框架与工具
 12. **LlamaIndex** (Jerry Liu). https://www.llamaindex.ai/ — RAG 专用框架
-13. **LangChain** (Harrison Chase). https://www.langchain.com/ — LLM 编排框架
-14. **RAGAS** — RAG 评估框架
-15. **Milvus / Pinecone / Weaviate / Qdrant** — 向量数据库
-16. **Microsoft GraphRAG** — 图检索框架
-17. **LightRAG** — 轻量化 RAG 框架
-18. **MiniRAG** (Hong Kong University, 2025) — 边缘设备 RAG
-19. **arXiv:2504.18041** (2025) — "RAG LLMs are Not Safer"，RAG 安全性研究
+13. **LlamaParse** — LlamaIndex 官方文档解析服务，支持 90+ 格式，复杂 PDF/PPT/图表解析首选
+14. **LangChain** (Harrison Chase). https://www.langchain.com/ — LLM 编排框架
+15. **RAGAS** — RAG 评估框架
+16. **Milvus / Pinecone / Weaviate / Qdrant** — 向量数据库
+17. **Microsoft GraphRAG / LazyGraphRAG** — 图检索框架（含低成本 LazyGraphRAG）
+18. **LightRAG** — 轻量化 RAG 框架
+19. **MiniRAG** (Hong Kong University, 2025) — 边缘设备 RAG
+20. **arXiv:2504.18041** (2025) — "RAG LLMs are Not Safer"，RAG 安全性研究
 
 ---
 
-*本手册基于 2020-2025 年的公开论文、演讲和技术文档整理而成。技术发展迅速，建议定期更新。*
+*本手册基于 2020-2025 年的公开论文、演讲和技术文档整理而成。v2.1.0 更新：新增 LlamaParse、CRAG、Adaptive RAG、LazyGraphRAG、Late Chunking 等 2025 年最新技术。技术发展迅速，建议定期更新。*
