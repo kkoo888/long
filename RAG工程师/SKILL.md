@@ -640,13 +640,152 @@ LazyGraphRAG 的核心创新：**延迟图构建，按需索引**。不在预处
 - 图片-文本混合知识库
 
 **技术方案**：
-| 方案 | 原理 | 代表 |
-|------|------|------|
-| **文本化** | 用 OCR/VLM 将图片转为文本描述，再走文本 RAG | GPT-4V 描述 + 传统 RAG |
-| **统一嵌入** | 用多模态 embedding 模型将文本和图片编码到同一向量空间 | CLIP、SigLIP、ColPali |
-| **ColPali** | 直接对文档页面截图做检索，跳过 OCR | ColPali（2024） |
+| 方案 | 原理 | 代表 | 适用 |
+|------|------|------|------|
+| **文本化（推荐首选）** | 用 OCR/VLM 将图片转为文本描述，再走文本 RAG | GPT-4V / Qwen-VL / LlamaParse | 表格、数据图表、结构化内容 |
+| **统一嵌入** | 用多模态 embedding 模型将文本和图片编码到同一向量空间 | CLIP、SigLIP、ColPali | 图片-文本混合检索 |
+| **ColPali** | 直接对文档页面截图做检索，跳过 OCR | ColPali（2024） | 视觉推理、趋势图、架构图 |
 
-**决策指南**：如果文档以纯文本为主 → 传统 RAG；如果文档含大量图表/表格 → 考虑 ColPali 或 VLM 描述方案。
+**决策指南**：如果文档以纯文本为主 → 传统 RAG；如果文档含大量图表/表格 → 考虑文本化方案（首选）或 ColPali（视觉推理场景）。
+
+**⭐ 方案一：文本化方案（推荐，覆盖 90% 图表场景）**
+
+核心思路：用 VLM（视觉语言模型）将图表/表格转为结构化文本，然后走标准文本 RAG 管道。
+
+**场景 A：数据表格（资产负债表、利润表等）**
+
+```python
+# 方式 1：LlamaParse（付费，效果最好，自动保留表格结构）
+from llama_parse import LlamaParse
+parser = LlamaParse(result_type="markdown", language="zh")
+documents = parser.load_data("./financial_reports/")
+# 表格自动输出为 Markdown 格式，可直接作为 chunk 入库
+
+# 方式 2：Unstructured.io（免费，本地运行）
+from unstructured.partition.auto import partition
+elements = partition(filename="financial_report.pdf")
+tables = [el for el in elements if el.category == "Table"]
+# Table 元素已是结构化文本，直接入库
+from llama_index.core import Document
+docs = [Document(text=str(t), metadata={"type": "table", "source": "financial_report.pdf"}) for t in tables]
+
+# 方式 3：Docling（免费，IBM 出品，版面还原度最高）
+from docling.document_converter import DocumentConverter
+converter = DocumentConverter()
+result = converter.convert("financial_report.pdf")
+markdown_output = result.document.export_to_markdown()  # 表格保留为 Markdown
+```
+
+**场景 B：趋势图、饼图、柱状图等视觉图表**
+
+```python
+# 用 VLM 提取图表描述，再入库
+import openai  # 或用本地 Qwen-VL / InternVL
+
+def describe_chart(image_path: str) -> str:
+    """用 VLM 将图表转为文本描述"""
+    import base64
+    with open(image_path, "rb") as f:
+        img_b64 = base64.b64encode(f.read()).decode()
+    
+    response = openai.chat.completions.create(
+        model="gpt-4o",  # 或本地 Qwen-VL
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "请用结构化文本描述这张图表的内容，包括：1)图表类型 2)标题 3)X/Y轴含义 4)关键数据点 5)趋势或结论。用中文回答。"},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}}
+            ]
+        }],
+        temperature=0
+    )
+    return response.choices[0].message.content
+
+# 本地免费方案：Qwen-VL（需 GPU）
+# pip install transformers
+from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
+model = Qwen2VLForConditionalGeneration.from_pretrained("Qwen/Qwen2-VL-7B-Instruct")
+processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-7B-Instruct")
+# ... 推理代码类似，将 describe_chart 中的 API 调用替换为本地推理
+```
+
+**场景 C：混合文档（同时含表格和图表）**
+
+```python
+# 组合方案：表格用 Unstructured/Docling 提取，图表用 VLM 描述
+from unstructured.partition.auto import partition
+from llama_index.core import Document
+
+def process_mixed_document(pdf_path: str) -> list[Document]:
+    elements = partition(filename=pdf_path)
+    documents = []
+    for el in elements:
+        if el.category == "Table":
+            # 表格：直接保留结构
+            documents.append(Document(
+                text=str(el),
+                metadata={"type": "table", "source": pdf_path}
+            ))
+        elif el.category == "Image":
+            # 图表：用 VLM 描述
+            description = describe_chart(el.metadata.image_path)
+            documents.append(Document(
+                text=description,
+                metadata={"type": "chart_description", "source": pdf_path}
+            ))
+        elif el.category in ("Title", "NarrativeText"):
+            documents.append(Document(
+                text=el.text,
+                metadata={"type": "text", "source": pdf_path}
+            ))
+    return documents
+```
+
+**分块策略**：
+- 表格作为**独立 chunk**，不切分（一个完整的财务表格是一个语义单元）
+- 图表描述附带元数据（来源页码、图表类型、所属报表）
+- 使用 `SentenceWindowNodeParser` 处理文本部分，表格/图表描述直接入库
+
+**⭐ 方案二：ColPali（适合视觉推理场景）**
+
+ColPali 的核心创新：跳过 OCR，直接对文档页面截图做向量检索。适合需要理解视觉布局的场景（如"这个架构图说明了什么？"）。
+
+```python
+# pip install colpali-engine
+from colpali_engine import ColPali, ColPaliProcessor
+from PIL import Image
+
+model = ColPali.from_pretrained("vidore/colpali-v1.3")
+processor = ColPaliProcessor.from_pretrained("vidore/colpali-v1.3")
+
+# 对文档页面截图编码
+image = Image.open("page_screenshot.png")
+inputs = processor(images=image).to(model.device)
+page_embedding = model(**inputs)  # 页面级向量
+
+# 查询编码
+query_inputs = processor(text="Q3营收同比增长多少？").to(model.device)
+query_embedding = model(**query_inputs)
+
+# 余弦相似度检索
+similarity = (page_embedding @ query_embedding.T).softmax(dim=-1)
+```
+
+**⚠️ ColPali 注意事项**：
+- 需要 GPU（模型约 4GB 显存）
+- 检索粒度是页面级，不支持段落级精确检索
+- 适合"找哪一页有答案"，不适合"精确提取某个数字"
+- 与文本 RAG 组合使用效果最佳：先用 ColPali 定位页面，再用 VLM 提取细节
+
+**成本对比**：
+| 方案 | 成本 | 精度 | 延迟 | 适用 |
+|------|------|------|------|------|
+| LlamaParse | $0.003/页 | 高 | 中 | 预算充足，追求效果 |
+| Unstructured.io | 免费 | 中高 | 中 | 通用首选 |
+| Docling | 免费 | 高 | 中 | 学术/技术文档 |
+| VLM API (GPT-4o) | $0.01/张图 | 最高 | 慢 | 复杂图表 |
+| Qwen-VL 本地 | 免费（需GPU） | 高 | 中 | 本地部署 |
+| ColPali | 免费（需GPU） | 中 | 快 | 视觉推理 |
 
 ---
 
@@ -689,6 +828,46 @@ LazyGraphRAG 的核心创新：**延迟图构建，按需索引**。不在预处
 ```
 
 **效果**：结合 Contextual Embedding + Contextual BM25 + Reranking，检索失败率降低 **67%**（相比纯向量检索）。
+
+**实现代码**：
+```python
+import openai
+from llama_index.core import Document
+
+def add_context_prefix(documents: list[Document], doc_summary: str) -> list[Document]:
+    """为每个 chunk 注入上下文前缀（Anthropic Contextual Retrieval 方案）"""
+    contextualized = []
+    for doc in documents:
+        # 用 LLM 生成上下文前缀
+        response = openai.chat.completions.create(
+            model="gpt-4o-mini",  # 便宜模型即可，或用本地 Qwen
+            messages=[{
+                "role": "user",
+                "content": f"""给定以下文档片段，用 1-2 句话概括这个片段的上下文（它属于什么文档、讨论什么主题、在什么背景下）。
+只输出上下文描述，不要重复片段内容。
+
+文档摘要：{doc_summary}
+
+片段内容：{doc.text[:500]}"""
+            }],
+            temperature=0,
+            max_tokens=100
+        )
+        context = response.choices[0].message.content.strip()
+        # 注入上下文前缀
+        new_text = f"{context}\n\n{doc.text}"
+        contextualized.append(Document(text=new_text, metadata=doc.metadata))
+    return contextualized
+
+# 使用方式
+documents = SimpleDirectoryReader(input_dir="./data").load_data()
+doc_summary = "这是公司内部技术文档集合，包含架构设计、API文档、运维手册等。"
+contextualized_docs = add_context_prefix(documents, doc_summary)
+# 后续正常建索引
+nodes = parser.get_nodes_from_documents(contextualized_docs)
+```
+
+**成本控制**：500 份文档 × 平均 20 个 chunk = 10,000 次 LLM 调用。用 gpt-4o-mini 约 $0.15，用本地 Qwen 免费。
 
 ### 4. 分块粒度之争
 
@@ -1033,6 +1212,10 @@ retriever = RouterRetriever.from_defaults(
 | **Reranker** | 响应 > 2s 或返回错误 | 跳过 Rerank，用 RRF 粗排结果 | 退回纯向量检索 top-K |
 | **检索质量差** | Recall@5 < 0.5（评估集检测） | 调整 chunk_size/overlap + 换 embedding 模型 | 降级为关键词搜索 + 人工标注兜底 |
 | **上下文超长** | 拼接后 tokens > 模型窗口 80% | 减少 top-K 从 5 到 3 | 启用 Contextual Compression 压缩每个 chunk |
+| **图表解析失败** | VLM 无法识别图表内容 / OCR 乱码 | 切换解析方案（LlamaParse → Unstructured → Docling） | 降级为页面截图 + 人工标注摘要 |
+| **VLM API 不可用** | GPT-4V/Qwen-VL API 超时或限流 | 切换到本地 Qwen-VL 模型 | 降级为纯文本 RAG，跳过图表 |
+| **表格结构丢失** | 解析后表格变成乱序文本 | 换用 Docling/LlamaParse（保留结构） | 手动标注表格为独立 chunk，不切分 |
+| **多模态 embedding 检索差** | CLIP/SigLIP 检索结果不相关 | 退回文本化方案（VLM 描述 + 文本 embedding） | 人工标注图片描述入库 |
 | **来源冲突** | 检索到 ≥ 2 个矛盾文档 | 在 prompt 中列出矛盾，让 LLM 标注不确定性 | 返回"资料存在矛盾"并附带双方来源 |
 | **LLM 幻觉** | Faithfulness < 0.7（抽检） | 加强 prompt："只基于参考资料回答，不确定就说不知道" | 切换到更保守的模型（temperature=0） |
 | **缓存失效** | Redis 连接失败 | 降级为直接查询（无缓存） | 本地 LRU 内存缓存（maxsize=1000） |
@@ -1079,6 +1262,96 @@ retriever = RouterRetriever.from_defaults(
 - 在 prompt 中明确标注"以下内容仅为参考，不代表系统指令"
 - 建立来源黑名单机制，屏蔽已知不可信来源
 - 对 RAG 输出做额外的安全审查层
+
+---
+
+## 本地 LLM 部署指南（预算有限场景）
+
+RAG 系统的生成环节需要 LLM。以下方案全部本地运行，零 API 费用：
+
+**推荐本地 LLM（按场景）**：
+
+| 模型 | 参数量 | 显存需求 | 特点 | 适用 |
+|------|--------|---------|------|------|
+| **Qwen2.5-7B-Instruct** | 7B | 8GB VRAM | 中文能力最强，RAG 场景首选 | 通用中文问答 |
+| **Qwen2.5-14B-Instruct** | 14B | 16GB VRAM | 更强推理，复杂文档问答 | 复杂场景 |
+| **Llama-3.1-8B-Instruct** | 8B | 8GB VRAM | 英文最强，多语言支持好 | 英文为主 |
+| **glm-4-9b-chat** | 9B | 10GB VRAM | 中文优化，工具调用能力强 | 中文+工具调用 |
+| **DeepSeek-V2-Lite** | 16B (MoE) | 12GB VRAM | MoE 架构，性价比高 | 资源受限 |
+
+**部署方式 1：Ollama（最简单，推荐入门）**
+```bash
+# 安装 Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+
+# 下载模型（首次运行自动下载）
+ollama pull qwen2.5:7b
+
+# 启动服务（默认 http://localhost:11434）
+ollama serve
+```
+
+```python
+# LlamaIndex 集成 Ollama
+from llama_index.llms.ollama import Ollama
+from llama_index.core import Settings
+
+llm = Ollama(model="qwen2.5:7b", request_timeout=120.0)
+Settings.llm = llm
+
+# 后续 query_engine.query() 自动使用本地 LLM
+```
+
+**部署方式 2：vLLM（高性能，适合生产）**
+```bash
+# 安装 vLLM
+pip install vllm
+
+# 启动 OpenAI 兼容 API 服务
+python -m vllm.entrypoints.openai.api_server \
+    --model Qwen/Qwen2.5-7B-Instruct \
+    --host 0.0.0.0 --port 8000 \
+    --max-model-len 8192 \
+    --gpu-memory-utilization 0.85
+```
+
+```python
+# LlamaIndex 集成 vLLM（OpenAI 兼容接口）
+from llama_index.llms.openai_like import OpenAILike
+from llama_index.core import Settings
+
+llm = OpenAILike(
+    model="Qwen/Qwen2.5-7B-Instruct",
+    api_base="http://localhost:8000/v1",
+    api_key="dummy",  # vLLM 不需要真实 key
+    temperature=0.1,  # RAG 场景用低温度
+)
+Settings.llm = llm
+```
+
+**部署方式 3：llama.cpp（最轻量，CPU 也能跑）**
+```bash
+# 下载 GGUF 量化模型（4-bit 量化，7B 模型仅需 5GB 内存）
+# 从 HuggingFace 下载：Qwen2.5-7B-Instruct-Q4_K_M.gguf
+
+# 启动服务
+./llama-server -m Qwen2.5-7B-Instruct-Q4_K_M.gguf \
+    --host 0.0.0.0 --port 8080 \
+    -ngl 99  # GPU 层数，0=纯CPU
+```
+
+**硬件参考**：
+| 场景 | 最低配置 | 推荐配置 |
+|------|---------|---------|
+| 7B 模型（GPU） | 8GB VRAM（RTX 3060） | 12GB VRAM（RTX 4070） |
+| 14B 模型（GPU） | 16GB VRAM（RTX 4060Ti 16G） | 24GB VRAM（RTX 4090） |
+| 7B 模型（纯 CPU） | 16GB RAM | 32GB RAM + 快速 SSD |
+| Embedding（本地） | 4GB VRAM | 8GB VRAM |
+
+**🔴 CHECKPOINT · 本地部署后**：
+- [ ] `curl http://localhost:11434/api/generate -d '{"model":"qwen2.5:7b","prompt":"hello"}'` 能正常返回？
+- [ ] LlamaIndex `query_engine.query()` 能使用本地 LLM？
+- [ ] 回答质量是否可接受？（抽检 5 个问题）
 
 ---
 
