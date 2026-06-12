@@ -1,0 +1,47 @@
+[
+  {
+    "id": 1,
+    "prompt": "我的Windows电脑突然上不了网了，ipconfig显示169.254.x.x的地址，怎么排查？",
+    "expected": "识别APIPA问题，按五步法给出系统化排障流程，包含DHCP检查、注册表查看、netsh重置等具体命令，修复后需验证，给出上中下三策"
+  },
+  {
+    "id": 2,
+    "prompt": "公司内网有个服务连接特别慢，ping正常但curl经常超时，用什么工具定位？",
+    "expected": "推荐Procmon抓时间戳间隙（>1秒阈值）+TCPView看连接状态+抓包分析重传，给出具体过滤条件和分析思路，修复后验证+复盘"
+  },
+  {
+    "id": 3,
+    "prompt": "我怀疑DNS有问题，nslookup能解析但浏览器打不开网站，怎么深入排查？",
+    "expected": "区分DNS缓存/hosts文件/安全软件MITM，用Procmon过滤Dnscache进程，对比多DNS解析结果，检查DNS over HTTPS"
+  },
+  {
+    "id": 4,
+    "prompt": "我在Server Core上没有GUI工具，怎么查看哪些进程占用了端口？",
+    "expected": "给出PowerShell替代方案：Get-NetTCPConnection + Get-Process关联，或netstat -ano + tasklist，不需要管理员权限的命令优先"
+  },
+  {
+    "id": 5,
+    "prompt": "我们团队排查一个网络问题，网络组说防火墙没问题，系统组说服务正常，但用户还是连不上，怎么协作？",
+    "expected": "给出协作排障框架：统一时间线+共享证据目录+指挥者汇总关联分析，角色分工明确"
+  },
+  {
+    "id": 6,
+    "prompt": "公司安全团队怀疑有人在内网做ARP欺骗，怎么用Windows自带工具检测？",
+    "expected": "arp -a对比网关MAC+PowerShell持续监控ARP变化+静态绑定ARP+检查WFP过滤驱动"
+  },
+  {
+    "id": 7,
+    "prompt": "服务器上发现大量CLOSE_WAIT状态的连接，怎么定位是哪个应用的问题？",
+    "expected": "Get-NetTCPConnection -State CloseWait + Group-Object OwningProcess + Get-Process关联，指出这是应用socket泄漏bug"
+  },
+  {
+    "id": 8,
+    "prompt": "Windows Server上ping目标服务器正常，但SSH连接超时，IPv6地址是fe80开头的，怎么回事？",
+    "expected": "识别IPv6链路本地地址问题，检查是否走了IPv6而不是IPv4，给出Disable-NetAdapterBinding临时禁用IPv6的排障方法"
+  },
+  {
+    "id": 9,
+    "prompt": "帮我用PowerShell一键采集当前网络状态快照，我要留证据",
+    "expected": "调用一键排障脚本或手动执行：Get-NetAdapter + Get-NetIPConfiguration + Get-DnsClientCache + Get-NetTCPConnection + Get-NetRoute + Get-NetNeighbor"
+  }
+]
