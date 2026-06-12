@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "prompt": "我们团队刚启动一个 Python 后端项目，用 FastAPI，想引入 TDD。请帮我规划第一步应该怎么做，包括测试框架选型、第一个测试写什么、CI 怎么配。",
+    "expected": "给出具体的框架选型（pytest）、第一个 TDD 测试示例（Red-Green-Refactor）、CI 配置建议，而不是泛泛而谈"
+  },
+  {
+    "id": 2,
+    "prompt": "我们的微服务架构有 5 个服务，目前全靠 E2E 测试，每次 CI 跑 30 分钟，还经常 flaky。请给出改造方案，把测试金字塔从倒三角改回正三角。",
+    "expected": "给出分层改造方案：引入契约测试替代部分 E2E、Presubmit 只跑快速测试、Flaky Test 治理策略，有具体步骤和时间线"
+  },
+  {
+    "id": 3,
+    "prompt": "我们的 3D 渲染引擎每次提交都会自动跑 pixel diff 测试，但最近发现有些渲染 bug 只在特定 GPU 上出现，pixel diff 完全检测不到。怎么改进？",
+    "expected": "结合 HTSM 风险驱动分析：兼容性矩阵测试、GPU 特定配置的自动化、人工 testing 补充 checking 的不足"
+  }
+]
