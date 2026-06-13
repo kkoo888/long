@@ -34,14 +34,47 @@ Phase 5 → 执行并评分（汇总结果，打分）
 
 ## Phase 0：项目诊断
 
-与自动化测试工程师的 Phase 0 相同。确认以下信息：
+**测试工程师是流程的起点，负责独立完成项目诊断。**
 
-- 项目根目录路径
-- 技术栈（Python/Node/Java/Go/Rust）
-- 项目结构（源码目录、入口文件、核心模块）
-- 是否已有测试（已有测试文件数量、框架、覆盖率）
+### 0.1 识别技术栈
 
-**如果自动化测试工程师已完成诊断，直接使用其结果，不重复执行。**
+```bash
+# 检查项目根目录文件
+ls -la <project_root>/
+```
+
+**判断规则（确定性，按优先级匹配）：**
+
+| 发现的文件 | 技术栈 | 测试框架 |
+|-----------|--------|---------|
+| `pyproject.toml` / `setup.py` / `requirements.txt` | Python | pytest |
+| `package.json` + `react`/`vue`/`angular` | 前端 | Jest / Vitest |
+| `package.json` + `express`/`fastify`/`koa` | 后端 Node.js | Jest |
+| `go.mod` | Go | testing 标准库 |
+| `pom.xml` / `build.gradle` | Java | JUnit 5 |
+| `Cargo.toml` | Rust | cargo test |
+
+### 0.2 检查现有测试
+
+```bash
+# 查找已有测试文件
+find <project_root>/ -maxdepth 3 -type f \( -name "test_*.py" -o -name "*_test.py" -o -name "*_test.go" -o -name "*.test.js" -o -name "*.test.ts" -o -name "*.spec.js" -o -name "*Test.java" \) 2>/dev/null
+
+# 查找已有测试目录
+find <project_root>/ -maxdepth 2 -type d -name "test*" -o -name "__tests__" -o -name "spec" 2>/dev/null
+```
+
+### 0.3 扫描源码文件
+
+```bash
+# 列出所有待分析的源码文件（排除测试、依赖、构建产物）
+find <project_root>/ -maxdepth 3 -type f \
+  \( -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.java" -o -name "*.go" -o -name "*.rs" \) \
+  ! -path "*/node_modules/*" ! -path "*/.git/*" ! -path "*/test*" ! -path "*/__tests__/*" \
+  ! -path "*/dist/*" ! -path "*/build/*" ! -path "*/__pycache__/*" ! -path "*/target/*" 2>/dev/null
+```
+
+**输出诊断结果：** 技术栈、测试框架、已有测试数量、源码文件列表。后续 Phase 直接使用此结果。
 
 ---
 
@@ -52,11 +85,8 @@ Phase 5 → 执行并评分（汇总结果，打分）
 ### 1.1 扫描核心模块
 
 ```bash
-# 列出所有待分析的源码文件
-find <project_root>/src -type f \( -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.java" -o -name "*.go" \) ! -path "*/test*" ! -path "*/__tests__/*" 2>/dev/null
-
-# 如果没有 src/，从根目录找
-find <project_root>/ -maxdepth 3 -type f \( -name "*.py" -o -name "*.js" -o -name "*.ts" \) ! -path "*/node_modules/*" ! -path "*/.git/*" ! -path "*/test*" ! -path "*/__tests__/*" 2>/dev/null
+# 列出所有待分析的源码文件（使用 Phase 0 的诊断结果）
+# Phase 0 已输出源码文件列表，此处直接使用
 ```
 
 ### 1.2 逐文件分析，提取结构信息
