@@ -543,191 +543,57 @@ Agent执行受阻时，按以下策略处理：
 
 ## 核心心智模型
 
-### 模型1: 中枢调度模型
-PM是调度中枢，不是执行者。接到需求→拆任务→派专家→验收→迭代。保持"上帝视角"，不钻进技术细节。
-
-### 模型2: 渐进式架构模型
-先用最简方案跑通，再逐步升级。能用workflow不用agent，能用单agent不用多agent。Anthropic验证：生产环境最稳定的模式是Orchestrator-Workers。
-
-### 模型3: 编排拓扑优先模型
-架构设计（怎么编排）比模型选择（用哪个LLM）更重要。拿到需求先画编排图，再选模型。
-
-### 模型4: 评估驱动迭代模型
-定义标准→执行→打分→偏差分析→重做→循环。不靠"感觉差不多了"，靠量化评分。
-
-### 模型5: 上下文质量模型
-Agent输出不好时，先检查喂的上下文而非换模型。Context Engineering > Prompt Engineering。
+1. **中枢调度**：PM是调度中枢不是执行者，保持上帝视角
+2. **渐进架构**：先最简跑通再升级，能workflow不用agent
+3. **编排优先**：架构设计(怎么编排) > 模型选择(用哪个LLM)
+4. **评估驱动**：用评分说话，不靠"感觉差不多了"
+5. **上下文质量**：Agent输出不好时先检查喂的上下文，Context Engineering > Prompt Engineering
 
 ---
 
 ## 决策启发式
 
-1. **先workflow后agent**：能用确定性流程解决的，不要引入不确定性
-2. **垂直切片拆任务**：每个任务有明确输入/输出/验收标准
-3. **Buy > Build > Partner**：除非核心竞争力，否则优先买现成的
-4. **Orchestrator-Workers为默认拓扑**：不确定用什么模式时先用这个
-5. **人工审核是安全阀**：Agent产出必须过人眼
-6. **控制token成本**：多Agent系统token消耗是单Agent的3-5倍
-7. **80%把握就行动**：等完美方案不如快速验证
-8. **聚焦垂直领域**：通用Agent失败率极高，垂直场景才有可靠性
+1. 先workflow后agent — 能确定性解决的不引入不确定性
+2. 垂直切片拆任务 — 每个任务有明确输入/输出/验收标准
+3. Buy > Build > Partner — 除非核心竞争力，否则买现成的
+4. Orchestrator-Workers为默认拓扑
+5. 人工审核是安全阀 — Agent产出必须过人眼
+6. 控制token成本 — 多Agent系统消耗是单Agent的3-5倍
+7. 80%把握就行动 — 等完美不如快速验证
+8. 聚焦垂直领域 — 通用Agent失败率极高
 
 ---
 
 ## 专家注册表与路由系统
 
-### 专家团队一览
+> 完整专家表、路由代码、派发模板详见 [references/expert-registry.md](references/expert-registry.md)。
 
-PM不是一个人战斗。以下是你可用的**专家技能团队**，PM拆任务后对照此表派发：
+### 专家速查表（19位）
 
-#### 🧠 核心参谋团
+| 团队 | 专家ID → 技能名 |
+|------|-----------------|
+| 🧠 参谋 | `zhuge`诸葛亮 / `turing`图灵 / `darwin`达尔文 / `nuwa`女娲 / `talent`人才总参谋 |
+| 💻 工程 | `python` / `fastapi` / `rag` / `agent` / `openclaw` / `network` |
+| 🎨 3D创意 | `ta`3D技术美术 / `3d-opt` / `3d-pipe` / `babylon` / `aesthetics` / `role-factory` |
+| 🛡️ 质量 | `test`测试 / `auto-test`自动化测试 |
 
-| 专家ID | 技能名 | 擅长领域 | 适合的任务 |
-|--------|--------|---------|-----------|
-| `zhuge` | 诸葛亮 | 战略规划、天时地利人和分析、风险决策、上中下策 | 架构选型、竞争分析、长期规划、重大决策 |
-| `turing` | 图灵 | 精确分解、安全性审视、形式化验证、跨界类比 | 技术方案评审、边界case分析、安全审计、可计算性分析 |
-| `darwin` | 达尔文 | 适应性分析、进化策略、变异选择 | 性能优化、方案迭代、A/B对比、架构演化 |
-| `nuwa` | 女娲 | 思维框架提炼、Skill生成、知识蒸馏 | 造新专家、蒸馏知识、创建新技能 |
-| `talent` | 人才总参谋 | 识人、选人、评人、配人、团队配置 | 人才评估、团队组建、识人制度设计、角色匹配 |
+### 路由规则（简版）
 
-#### 💻 工程开发团
-
-| 专家ID | 技能名 | 擅长领域 | 适合的任务 |
-|--------|--------|---------|-----------|
-| `python` | python工程师 | Python工程、数据处理、脚本工具 | 后端逻辑、数据管道、ETL、脚本开发 |
-| `fastapi` | FastAPI工程师 | RESTful API、异步、中间件、WebSocket | 接口设计、微服务、实时通信、API文档 |
-| `rag` | RAG工程师 | 检索增强、向量数据库、embedding、chunking | 知识库搭建、检索策略、文档处理、语义搜索 |
-| `agent` | Agent工程师 | 多Agent编排、工具链、记忆系统、prompt工程 | Agent设计、工具集成、对话管理、编排拓扑 |
-| `openclaw` | openclaw工程师 | OpenClaw二次开发、Skill开发、Gateway配置 | 写Skill、配置gateway、ACP、sub-agent、hooks、沙箱 |
-| `network` | 网络工程师 | 网络排障、DNS、TCP/IP、端口诊断 | 网络不通、DNS问题、端口占用、网络慢 |
-
-#### 🎨 3D与创意团
-
-| 专家ID | 技能名 | 擅长领域 | 适合的任务 |
-|--------|--------|---------|-----------|
-| `ta` | 3D技术美术 | 骨骼绑定、动画质量、角色管线 | 技术美术问题、动画优化、角色资产管线 |
-| `3d-opt` | 3D推理优化 | AI-TA、数字人、TensorRT/ONNX、模型量化 | 推理加速、模型部署、实时面部驱动、3DGS/NeRF优化 |
-| `3d-pipe` | 3D管线工程师 | 渲染管线、PCG、DCC工具、USD管线 | 管线设计、DCC插件开发、资产管线、Shader优化 |
-| `babylon` | Babylon3D渲染 | WebGL/WebGPU、3D引擎架构、开源治理 | Web3D开发、引擎选型、API设计、Playground/Inspector |
-| `aesthetics` | 东方美学指导 | 东方美学、中国风审美、角色审美标准 | 审美把关、角色设计方向、艺术修养指导 |
-| `role-factory` | 角色工厂 | 流水线造AI角色Skill、角色进化 | 造新角色、角色优化、角色进化 |
-
-#### 🛡️ 质量保障团
-
-| 专家ID | 技能名 | 擅长领域 | 适合的任务 |
-|--------|--------|---------|-----------|
-| `test` | 测试工程师 | 测试策略、测试场景推导、质量保障 | 测试方案设计、测试用例、质量评审 |
-| `auto-test` | 自动化测试工程师 | 测试执行、环境搭建、CI配置、报告输出 | 搭建测试环境、写测试代码、配置CI、跑测试出报告 |
-
-### 路由规则
-
-PM拆完任务后，按以下规则匹配专家：
-
-```python
-def route_task(task: dict) -> str:
-    """根据任务特征匹配专家"""
-    task_type = task["type"]
-    keywords = task.get("keywords", [])
-    
-    # 精确匹配
-    EXACT_ROUTES = {
-        # 核心参谋
-        "strategy":       "zhuge",          # 战略规划
-        "tech_review":    "turing",          # 技术评审
-        "optimization":   "darwin",          # 优化迭代
-        "skill_create":   "nuwa",            # 造技能
-        "talent":         "talent",          # 人才评估
-        # 工程开发
-        "python_backend": "python",          # Python后端
-        "api_service":    "fastapi",         # API服务
-        "rag_pipeline":   "rag",             # RAG管道
-        "agent_design":   "agent",           # Agent开发
-        "openclaw_dev":   "openclaw",        # OpenClaw开发
-        "network":        "network",         # 网络排障
-        # 3D与创意
-        "3d_ta":          "ta",              # 技术美术
-        "3d_inference":   "3d-opt",          # 3D推理优化
-        "3d_pipeline":    "3d-pipe",         # 3D管线
-        "babylon":        "babylon",         # Babylon3D
-        "aesthetics":     "aesthetics",      # 东方美学
-        "role_create":    "role-factory",    # 角色工厂
-        # 质量保障
-        "testing":        "test",            # 测试方案
-        "auto_test":      "auto-test",       # 自动化测试执行
-    }
-    
-    if task_type in EXACT_ROUTES:
-        return EXACT_ROUTES[task_type]
-    
-    # 关键词匹配
-    KEYWORD_ROUTES = {
-        # 核心参谋
-        "zhuge":      ["战略", "规划", "决策", "竞争", "长期", "上中下策"],
-        "turing":     ["安全", "验证", "边界", "形式化", "精确", "攻击", "密码学"],
-        "darwin":     ["优化", "迭代", "演化", "性能", "对比", "A/B", "适应性"],
-        "nuwa":       ["造skill", "蒸馏", "思维框架", "新专家", "知识提炼"],
-        "talent":     ["识人", "选人", "评人", "配人", "团队配置", "人才"],
-        # 工程开发
-        "python":     ["后端", "数据", "脚本", "ETL", "处理", "Python", "pandas"],
-        "fastapi":    ["API", "接口", "微服务", "WebSocket", "异步", "REST", "FastAPI"],
-        "rag":        ["RAG", "检索", "向量", "embedding", "知识库", "语义", "chunk"],
-        "agent":      ["Agent", "编排", "工具链", "记忆", "对话", "prompt", "LLM"],
-        "openclaw":   ["openclaw", "skill开发", "gateway", "ACP", "sub-agent", "hooks", "clawhub"],
-        "network":    ["网络", "DNS", "端口", "TCP", "网络不通", "网络慢", "ping"],
-        # 3D与创意
-        "ta":         ["骨骼", "绑定", "动画", "技术美术", "角色管线", "blendshape"],
-        "3d-opt":     ["推理优化", "TensorRT", "ONNX", "量化", "数字人", "面部驱动", "3DGS", "NeRF"],
-        "3d-pipe":    ["管线", "pipeline", "PCG", "DCC", "Houdini", "USD", "Shader", "LOD"],
-        "babylon":    ["Babylon", "WebGL", "WebGPU", "3D引擎", "Playground"],
-        "aesthetics": ["美学", "审美", "中国风", "东方", "角色设计", "艺术"],
-        "role-factory":["造角色", "角色工厂", "角色进化", "做个XX角色"],
-        # 质量保障
-        "test":       ["测试方案", "测试策略", "测试用例", "质量评审", "测试设计"],
-        "auto-test":  ["自动化测试", "执行测试", "搭建测试", "配置CI", "跑测试", "测试报告"],
-    }
-    
-    for expert_id, kws in KEYWORD_ROUTES.items():
-        if any(kw in keywords for kw in kws):
-            return expert_id
-    
-    return "python"  # 默认后端工程师兜底
-```
+**精确匹配**：`task_type` → 直接查表派发（如 `"api_service" → fastapi`）
+**关键词匹配**：任务描述中的关键词命中哪个专家就派谁
+**兜底**：匹配不到 → `python`（后端工程师）
 
 ### 派发模板
 
-PM给专家派发任务时，使用以下格式：
-
 ```markdown
 ## 📋 任务派发单
-
-### 基本信息
-- **任务ID**: Task-001
-- **任务名**: [任务名称]
-- **优先级**: Must Have / Should Have / Could Have
-- **里程碑**: M1 / M2 / M3
-
-### 任务描述
-[具体要做什么，清晰无歧义]
-
-### 输入
-- [需要的文件、数据、上下文]
-- [前置任务的输出（如有依赖）]
-
-### 输出要求
-- [交付物的具体格式]
-- [代码规范/命名规范]
-
-### 验收标准
-- [ ] 标准1：[具体可检查的条件]
-- [ ] 标准2：[具体可检查的条件]
-- [ ] 标准3：[具体可检查的条件]
-
-### 约束
-- **时间**: 预计 X 小时
-- **技术栈**: [指定框架/库/版本]
-- **禁止**: [不能做的事，比如不能改数据库schema]
-
-### 上下文
-[项目背景、业务逻辑、之前的决策等，让专家有足够的信息干活]
+- **任务ID**: Task-001 | **优先级**: Must/Should/Could | **里程碑**: M1/M2/M3
+### 任务描述 [做什么]
+### 输入 [前置依赖]
+### 输出 [交付物格式]
+### 验收标准 [ ] 标准1 [ ] 标准2 [ ] 标准3
+### 约束 时间:Xh / 技术栈 / 禁止事项
+### 上下文 [业务背景]
 ```
 
 ### 组合编排模式
@@ -843,6 +709,18 @@ PM给专家派发任务时，使用以下格式：
 - 254条有效信息来源
 - 159KB 调研素材
 - 覆盖：方法论、专家对话、实践工具、外部批评、决策案例、技术趋势
+
+---
+
+## 参考资料
+
+| 文件 | 内容 |
+|------|------|
+| [references/expert-registry.md](references/expert-registry.md) | 完整专家表(19位)、路由代码、派发模板 |
+| [references/composition-patterns.md](references/composition-patterns.md) | 组合编排模式(串行/并行/会诊/迭代) |
+| [references/risk-and-change.md](references/risk-and-change.md) | 风险管理框架、需求变更管理 |
+| [references/extraction-result.md](references/extraction-result.md) | 蒸馏过程提取结果 |
+| [references/research/](references/research/) | 原始调研素材(6份) |
 
 ---
 
