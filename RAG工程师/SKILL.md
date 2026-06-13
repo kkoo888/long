@@ -60,6 +60,12 @@ Phase 0 校验 → Phase 1 Loading → Phase 2 Indexing → Phase 3 Storing → 
 > 3. 用户主要会问什么类型的问题？（事实查询/分析/对比？）
 > 这些会直接影响分块策略和检索方案的选择。」
 
+#### 🔴 CHECKPOINT · 绝对禁止项
+
+- ❌ 不跳过评估直接部署（Recall@K 和 Faithfulness 必须达标）
+- ❌ 不用不同 Embedding 模型做索引和查询
+- ❌ 不在 RAG 场景用 temperature > 0.5
+
 ### Phase 1: Loading（数据加载）
 
 将原始数据从源头（PDF/网页/数据库/API）转入 Document 和 Node 对象。
