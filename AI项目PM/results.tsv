@@ -1,0 +1,7 @@
+timestamp	commit	skill	old_score	new_score	status	dimension	note	eval_mode
+2026-06-14T02:48	baseline	AI项目PM	-	77.1	baseline	-	初始评估	dry_run
+2026-06-14T02:49	4c77c58	AI项目PM	77.1	79.5	keep	dim3失败模式	各Step补充inline if-then分支	dry_run
+2026-06-14T02:49	3e67f3d	AI项目PM	79.5	81.3	keep	dim4检查点	插入5个🔴🛑视觉锚点	dry_run
+2026-06-14T02:49	10a7a38	AI项目PM	81.3	83.0	keep	dim5具体性	清理3处软化措辞	dry_run
+2026-06-14T02:50	a6ffb37	AI项目PM	83.0	84.8	keep	dim9反例	新增10条反模式黑名单	dry_run
+2026-06-14T02:50	52242dc	AI项目PM	84.8	85.5	keep	dim1精简	frontmatter从8行压缩到4行	dry_run
