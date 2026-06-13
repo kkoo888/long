@@ -95,7 +95,7 @@ author: "蒸馏自 Kent Beck TDD 方法论 + Google Testing 全栈策略 + James
 | **Green（绿）** | 写**最少的代码**让测试通过 | 允许"丑陋但正确"；关键是快速获得正反馈 |
 | **Refactor（重构）** | 在测试全部通过的前提下改善代码 | 一次只做一个重构；每步后跑测试 |
 
-**Kent Beck 的精确规则**（来自 B+Tree 项目）：
+**Kent Beck 的精确规则**（[D2] B+Tree3 CLAUDE.md）：
 1. 先写一个失败的测试，定义**小范围的功能增量**
 2. 使用有意义的测试名称描述行为（如 `shouldSumTwoPositiveNumbers`）
 3. 使测试失败时信息**清晰且有诊断性**
@@ -105,7 +105,7 @@ author: "蒸馏自 Kent Beck TDD 方法论 + Google Testing 全栈策略 + James
 
 **TDD 即设计**：先写测试迫使你从**使用者角度**思考 API。测试描述你想要什么（What），而非如何实现（How）。
 
-**最小 TDD 示例**（Python）：
+**最小 TDD 示例**（[D1] Kent Beck《TDD: By Example》+ [D29] pytest 文档改编）：
 
 ```python
 # === Red: 先写失败的测试 ===
@@ -140,7 +140,7 @@ def calculate_discount(order):
 
 **局限**：TDD 是默认实践，不是宗教教条。Kent Beck 承认"如果只是逻辑当然好测，但现实从来就不是这样"。
 
-**来源**：Kent Beck,《Test-Driven Development: By Example》(2002), B+Tree3 CLAUDE.md (2025)
+**来源**：[D1] Kent Beck《TDD: By Example》Ch.2 Red-Green-Refactor；[D2] B+Tree3 CLAUDE.md TDD 规则；[D3] Kent Beck Substack TDD+AI
 
 ---
 
@@ -148,7 +148,7 @@ def calculate_discount(order):
 
 **一句话**：底层单元测试快速反馈，中层集成测试验证交互，顶层 E2E 测试覆盖关键路径。比例 70/20/10。
 
-**Google 的测试规模定义**（按执行约束，非代码量）：
+**Google 的测试规模定义**（[D6] SWE at Google Ch.11，按执行约束，非代码量）：
 
 | 规模 | 约束条件 | 典型时间 | 对应层级 |
 |------|---------|---------|---------|
@@ -157,11 +157,11 @@ def calculate_discount(order):
 | **Large（大型）** | 无限制，可跨机器、访问外部服务 | 分钟级 | E2E 测试 |
 
 **推荐比例**：
-- **Small（单元）**：60-70% — 快速、确定性高、开发者编写
-- **Medium（集成）**：20-30% — 验证模块间接口契约
-- **Large（E2E）**：<10% — 聚焦用户真实场景
+- **Small（单元）**：60-70% [D6] — 快速、确定性高、开发者编写
+- **Medium（集成）**：20-30% [D6] — 验证模块间接口契约
+- **Large（E2E）**：<10% [D6] — 聚焦用户真实场景
 
-**碧昂斯规则**（Google 核心原则）：
+**碧昂斯规则**（[D6] Google 核心原则）：
 > "If you liked it, you should have put a test on it."
 > 如果你依赖某个行为，就为它写测试。
 
@@ -177,7 +177,7 @@ def calculate_discount(order):
 
 **局限**：Google 的资源级别（海量 CI 机器、Bazel 沙箱）与普通团队不同。小团队应简化为：单元测试 + 关键路径 E2E。
 
-**前端 E2E 实操示例**（Playwright）：
+**前端 E2E 实操示例**（[D14] Playwright 官方文档 + [D15] 最佳实践改编）：
 
 ```typescript
 // 核心用户流程 E2E：登录 → 添加购物车 → 结算
@@ -231,7 +231,16 @@ export default defineConfig({
 });
 ```
 
-**来源**：《Software Engineering at Google》(O'Reilly, 2020) Chapter 11, 14
+**失败恢复**：
+
+| 触发条件 | 一线修复 | 仍失败兜底 |
+|---------|---------|-----------|
+| E2E 测试占比 >30%，CI 超时 | 将非关键路径 E2E 下沉为集成测试 | 只保留 3-5 条核心 Happy Path E2E |
+| 单元测试覆盖率 <50% | 对核心业务逻辑补写 TDD 测试 | 先覆盖支付/订单等高风险模块，其余标记 TODO |
+| 集成测试频繁 flaky | 检查外部依赖，改为 Fake/Stub | 将不稳定的集成测试移至 Postsubmit |
+| 金字塔倒置（E2E > 单元） | 暂停新 E2E，强制新功能用 TDD | 按模块逐步迁移，每 sprint 迁移 1 个服务 |
+
+**来源**：[D6]《SWE at Google》Ch.11 测试规模定义与金字塔；[D8] Ch.14 封闭测试；[D15] Playwright 最佳实践
 
 ---
 
@@ -249,7 +258,7 @@ export default defineConfig({
 | **Spy** | 记录调用信息，事后验证 | 有限 | 交互验证 |
 | **Mock** | 预编程期望，验证是否收到预期调用 | 预设 | 交互验证 |
 
-**Google 的决策优先级**：
+**Google 的决策优先级**（[D7] SWE at Google Ch.13）：
 ```
 真实实现 (Real)
   ↓ 太慢/不稳定
@@ -260,7 +269,7 @@ Stub（适度使用）
 Mock（最后手段）
 ```
 
-**过度使用 Mock 的危害**（Google 的教训）：
+**过度使用 Mock 的危害**（[D7] Google 的教训）：
 1. Mock 变陈旧：实际实现变更后 Mock 不会自动更新
 2. 测试脆弱：暴露实现细节，重构时频繁失败
 3. 缺乏信心：Mock 只验证调用方式，不验证实际效果
@@ -313,7 +322,18 @@ def test_sends_welcome_email_after_registration():
     email_service.send_welcome.assert_called_once_with("bob@example.com")
 ```
 
-**来源**：《Software Engineering at Google》Chapter 13; Kent Beck,《TDD: By Example》
+**失败恢复**：
+
+| 触发条件 | 一线修复 | 仍失败兜底 |
+|---------|---------|-----------|
+| Mock 设置占测试 >50% | 用 Fake 替代 Mock（如内存数据库） | 重新审视依赖注入架构，解耦被测对象 |
+| Mock 与实际实现不一致 | 由 API 拥有者编写和维护 Fake | 在契约测试中验证接口兼容性 |
+| 测试因实现细节频繁失败 | 改为验证行为（输出）而非交互（调用） | 将脆弱测试标记为 @fragile，降低阻断优先级 |
+| 找不到合适的 Fake 实现 | 用 Stub 返回固定值 + 集成测试补充 | 在封闭环境（Hermetic）中用真实服务测试 |
+
+**局限**：[D7] Fake 需要 API 拥有者编写和维护，小团队可能没有资源；Mock 框架虽然方便但会鼓励测试实现细节而非行为；测试替身的质量上限取决于对真实行为的理解深度。
+
+**来源**：[D7]《SWE at Google》Ch.13 测试替身策略（Real > Fake > Stub > Mock）；[D1] Kent Beck《TDD: By Example》
 
 ---
 
@@ -321,7 +341,7 @@ def test_sends_welcome_email_after_registration():
 
 **一句话**：Presubmit 快速可靠，Postsubmit 全面覆盖，生产环境持续探针。分层反馈，逐级放量。
 
-**Google TAP 四阶段**：
+**Google TAP 四阶段**（[D9] SWE at Google Ch.23）：
 
 | 阶段 | 时机 | 运行内容 | 目的 |
 |------|------|---------|------|
@@ -343,7 +363,18 @@ def test_sends_welcome_email_after_registration():
 | 中团队 | 只跑快速测试，慢测试推迟 | 全面测试 + 覆盖率阈值 | Bazel + CI 平台 |
 | 大团队 | 相关测试 + 合并队列 | 全面测试 + 金丝雀发布 | Bazel + TAP + 自研工具 |
 
-**来源**：《Software Engineering at Google》Chapter 23; ICST 2026 论文
+**失败恢复**：
+
+| 触发条件 | 一线修复 | 仍失败兜底 |
+|---------|---------|-----------|
+| Presubmit 超时（>5 分钟） | 将慢测试移到 Postsubmit，只保留 <30s 的测试 | 按变更文件路径智能触发相关测试 |
+| 空中碰撞频繁发生 | 引入合并队列（Merge Queue） | 全量 Postsubmit + 金丝雀发布 |
+| CI 成本过高 | 并行化测试 + 缓存依赖 | 只在 main 分支跑全量，PR 跑增量 |
+| Flaky 测试阻断合并 | 标记 @flaky 移出 Presubmit | 建立 quarantine 套件，每周集中修复 |
+
+**局限**：[D9] Google TAP 是 Google 规模的产物（海量 CI 机器、Bazel 沙箱），小团队可能只能跑全量测试；合并队列需要 CI 平台支持，GitHub Actions 原生不支持；Presubmit/Postsubmit 分层需要团队纪律。
+
+**来源**：[D9]《SWE at Google》Ch.23 TAP 管线与空中碰撞；[D10] Google Engineering Practices；[D37] GitHub Actions 文档
 
 ---
 
@@ -366,7 +397,16 @@ def test_sends_welcome_email_after_registration():
 
 **局限**：封闭测试的搭建成本不低。小团队可以先从"单元测试封闭化"开始，集成测试逐步推进。
 
-**来源**：《Software Engineering at Google》Chapter 14; ICST 2023 论文
+**失败恢复**：
+
+| 触发条件 | 一线修复 | 仍失败兜底 |
+|---------|---------|-----------|
+| 外部依赖无法 Fake | 用 WireMock/MockServer 录制回放 | 在独立沙箱环境中用真实服务测试 |
+| 测试数据不一致 | 每个测试自包含数据，测试后清理 | 用事务回滚替代物理清理 |
+| 时间相关逻辑 flaky | 注入可控时钟（Clock 抽象） | 在测试中断言时间范围而非精确值 |
+| 容器化环境启动慢 | 预热容器池 + 复用容器 | 只对集成测试用容器化，单元测试用进程内 |
+
+**来源**：[D8]《SWE at Google》Ch.14 Hermetic Testing 四大特征
 
 ---
 
@@ -390,7 +430,18 @@ def test_sends_welcome_email_after_registration():
 - **结构性变更**（重命名、提取方法）和**行为性变更**（新功能）绝不在同一次提交中混合
 - 需要两者时，先做结构性变更
 
-**来源**：Kent Beck,《Extreme Programming Explained》(1999/2004),《Tidy First?》(2023)
+**失败恢复**：
+
+| 触发条件 | 一线修复 | 仍失败兜底 |
+|---------|---------|-----------|
+| 重构后测试变脆弱 | 撤销重构，检查是否耦合过重 | 只做重命名/提取方法等安全重构 |
+| YAGNI 导致后期返工 | 记录"推迟决策"的隐含成本，纳入估算 | 在架构决策记录（ADR）中标记需关注的点 |
+| 意图清晰与性能冲突 | 先保证意图清晰，再用 benchmark 验证性能 | 只在性能热点处牺牲可读性 |
+| 消除重复导致过度抽象 | 如果抽象引入了新概念 → 撤销 | 重复 3 次以上才提取抽象 |
+
+**局限**：[D32] 四原则有优先级冲突——当性能优化与意图清晰矛盾时，没有标准答案；YAGNI 的边界模糊——"可能需要"和"实际需要"只有事后才能区分；Tidy First 的结构性/行为性分离在紧急 hotfix 时可能不现实。
+
+**来源**：[D32] Kent Beck《Extreme Programming Explained》简单设计四原则；[D31]《Tidy First?》结构性/行为性变更分离；[D2] B+Tree3 CLAUDE.md YAGNI 规则
 
 ---
 
@@ -398,7 +449,7 @@ def test_sends_welcome_email_after_registration():
 
 **一句话**：先自动化最高风险区域。如果一个功能只测一个场景，那个场景就是最高风险场景，应优先自动化。
 
-**HTSM 四维度扫描**（用于决定"自动化什么"）：
+**HTSM 四维度扫描**（[D12] James Bach HTSM，用于决定"自动化什么"）：
 
 | 维度 | 问什么 | 自动化决策 |
 |------|--------|-----------|
@@ -418,7 +469,18 @@ def test_sends_welcome_email_after_registration():
 - [ ] 高风险区域的自动化检查深度是否达到可接受水平？
 - [ ] 是否记录了"我们选择不自动化什么"及其理由？
 
-**来源**：James Bach, satisfice.com, HTSM 框架
+**失败恢复**：
+
+| 触发条件 | 一线修复 | 仍失败兜底 |
+|---------|---------|-----------|
+| HTSM 扫描结果太多无法聚焦 | 按 影响×可能性 打分排序，只处理 Top 5 | 用 MoSCoW 方法分类：Must/Should/Could/Won't |
+| 风险评估主观偏差大 | 多人独立评估后取交集 | 用历史 bug 数据校准风险概率 |
+| 自动化 ROI 不确定 | 先手动测试 1 个 sprint，记录拦截 bug 数 | 只自动化回归测试（已知 bug 防复发） |
+| 团队不接受"不自动化什么"的决策 | 记录风险接受声明，定期回顾 | 在质量周报中展示未覆盖风险的状态 |
+
+**局限**：[D12] HTSM 四维度扫描对小团队可能过于重量级——完整扫描需要数小时；风险评估依赖主观判断，不同评估者可能给出不同排序；HTSM 是框架而非算法，需要测试经验才能有效使用。
+
+**来源**：[D12] James Bach HTSM 启发式测试策略模型 v6.3；[D13] Testing vs Checking 定位校准
 
 ---
 
@@ -478,11 +540,11 @@ Mock 设置超过测试 50%？ → 重新审视架构
 **规则**：Presubmit 只跑快速可靠的测试（<30秒），慢测试推迟到 Postsubmit。
 
 **理由**：
-- 开发者等待 >30 秒会分心
+- 开发者等待 >30 秒会分心 [推测，基于 D9 Presubmit 最佳实践]
 - 不可靠的测试（flaky test）在 presubmit 会造成误拦
 - 空中碰撞由 postsubmit + 合并队列处理
 
-### 启发式6：Testing vs Checking 定位（Bach 视角校准）
+### 启发式6：Testing vs Checking 定位（[D13] Bach 视角校准）
 
 | 自动化内容 | 本质 | 定位 |
 |-----------|------|------|
@@ -497,7 +559,7 @@ Mock 设置超过测试 50%？ → 重新审视架构
 
 **一句话**：AI 提速，人类把关。人写测试定义"要什么"，AI 生成实现"怎么做"，人审查质量。
 
-**Kent Beck 2025 的 AI-TDD 工作流**：
+**Kent Beck 2025 的 AI-TDD 工作流**（[D4] Pragmatic Engineer 播客）：
 ```
 人类写测试（定义行为）→ AI 生成实现 → 人类审查和完善 → 迭代
 ```
@@ -525,7 +587,7 @@ Mock 设置超过测试 50%？ → 重新审视架构
 - 简单功能的测试用例生成（验收标准覆盖率 98.67%）
 - 样板测试代码（CRUD、标准异常路径）
 - 测试用例初始草稿（80% 时间节省）
-- 元素定位自愈（80%+ 失效自动修复）
+- 元素定位自愈（80%+ 失效自动修复）[推测，基于 D33 Thoughtworks AI 测试实验]
 - 边界条件提示（AI 擅长提醒人类遗漏的边界值）
 
 **不该信任 AI 的场景** ⚠️：
@@ -537,7 +599,16 @@ Mock 设置超过测试 50%？ → 重新审视架构
 
 **局限**：AI 生成的测试可能"看起来正确"但断言过于宽松。Thoughtworks 实验显示时间节省 80%，但复杂业务场景仍是 AI 盲区。
 
-**来源**：Kent Beck, Pragmatic Engineer 播客 (2025); Thoughtworks 实验 (2025); Diffblue 基准测试 (2025)
+**失败恢复**：
+
+| 触发条件 | 一线修复 | 仍失败兜底 |
+|---------|---------|-----------|
+| AI 生成的断言过于宽松 | 人工审查断言，补充边界条件检查 | 用独立 AI agent 交叉审查测试质量 |
+| AI 不理解业务语义 | 提供业务上下文文档 + 示例 | 只让 AI 生成样板代码，业务逻辑人工编写 |
+| AI 生成的测试维护成本高 | 限制 AI 只生成 happy path 测试 | 回退到纯人工编写，AI 仅做代码审查辅助 |
+| AI 工具输出不稳定（每次不同） | 固定 prompt 模板 + temperature=0 | 锁定 AI 工具版本，测试结果纳入 snapshot |
+
+**来源**：[D4] Kent Beck Pragmatic Engineer 播客 TDD+AI (2025)；[D3] Kent Beck Substack AI 编码文章；[D33] Thoughtworks AI 测试实验；[D34] Diffblue Cover 基准测试；[D35] Google Cloud TDD+AI 指南
 
 ---
 
@@ -580,7 +651,7 @@ Mock 设置超过测试 50%？ → 重新审视架构
          └──────────── CI 不兼容时阻断部署 ←─────────────────────────┘
 ```
 
-**Pact 代码示例**（Python 消费者端）：
+**Pact 代码示例**（[D17] Pact Python 消费者端文档改编）：
 
 ```python
 import atexit
@@ -636,7 +707,16 @@ def test_products_service_contracts():
 
 **局限**：契约测试只验证格式兼容性，不验证业务正确性。不能替代集成测试和 E2E。
 
-**来源**：Pact 官方文档; Martin Fowler CDC; Microsoft Engineering Playbook; eBay 实践案例
+**失败恢复**：
+
+| 触发条件 | 一线修复 | 仍失败兜底 |
+|---------|---------|-----------|
+| 契约测试频繁因格式变更失败 | 用 `like()` / `eachLike()` 匹配器放宽格式约束 | 将契约验证从 CI 门禁改为告警模式 |
+| Provider 验证失败但消费者已部署 | 先回滚消费者，再修复 Provider | 用 Pact Broker 的 `can-i-deploy` 检查阻止不兼容部署 |
+| 团队不愿写契约测试 | 从 1 对核心服务做 POC，展示 ROI | 只对跨团队接口强制契约，团队内接口用集成测试 |
+| 契约文件膨胀难以维护 | 按消费者分组，定期清理过时契约 | 用 `wip` 标记未完成的契约，不纳入门禁 |
+
+**来源**：[D16] Pact 官方文档；[D17] Pact 消费者测试指南；[D18] Pact 提供者验证指南；[D19] Martin Fowler CDC；[D36] Microsoft Engineering Playbook
 
 ---
 
@@ -658,7 +738,7 @@ def test_products_service_contracts():
 
 **工具选型**（见工具选型决策树）：k6 为现代 CI/CD 首选。
 
-**k6 性能基准示例**：
+**k6 性能基准示例**（[D20] k6 官方文档改编）：
 ```javascript
 import http from 'k6/http';
 import { check, sleep } from 'k6';
@@ -702,7 +782,7 @@ export default function () {
 - 如果阈值设置导致 CI 频繁失败 → 调整阈值到合理范围（P95 而非 P50）
 - 如果 k6 在 CI 中 OOM → 减少虚拟用户数或延长升压时间
 
-**来源**：k6 官方文档; Grafana 实践; CSDN 性能测试工具对比 (2026)
+**来源**：[D20] k6 官方文档；[D21] k6 Thresholds 阈值断言；[D22] k6 CI/CD 集成指南
 
 ---
 
@@ -719,7 +799,7 @@ export default function () {
 | **DAST** | 部署前 | OWASP ZAP | 运行时漏洞（认证绕过、注入） |
 | **RASP/监控** | 生产时 | WAF + 日志分析 | 实时攻击检测 |
 
-**Shift-Left Security 管线**：
+**Shift-Left Security 管线**（[D23] Semgrep + [D25] Snyk + [D28] OWASP ZAP）：
 ```
 提交时 → SAST（Semgrep，<1 分钟门禁）
   ↓
@@ -759,7 +839,7 @@ export default function () {
 - 如果 Snyk 报告太多漏洞 → 先只修 Critical + High，Low/Medium 标记为 accepted
 - 如果 ZAP 扫描 staging 环境不稳定 → 用容器化封闭环境替代共享 staging
 
-**来源**：OWASP; Snyk 文档; Semgrep 文档; GitHub Actions Marketplace
+**来源**：[D23] Semgrep 官方文档；[D24] Semgrep CI 集成；[D25] Snyk 官方文档；[D26] OWASP WSTG；[D27] OWASP Top 10；[D28] OWASP ZAP 文档
 
 ---
 
@@ -924,7 +1004,7 @@ def test_pending_order_can_be_cancelled():
 └── 长期：建立 Flaky Test 仪表盘，设定治理目标
 ```
 
-**Google 的做法**：全局 Flake 分类系统，flaky 率 >1% 自动移出 Presubmit，定期 "Flake Fixit" 集中治理。
+**Google 的做法**（[D11] Google Testing Blog）：全局 Flake 分类系统，flaky 率 >1% 自动移出 Presubmit，定期 "Flake Fixit" 集中治理。
 
 ---
 
@@ -942,7 +1022,7 @@ def test_pending_order_can_be_cancelled():
 第 3-4 周：后端 TDD 推广
 ├── 核心业务逻辑全部 TDD 覆盖
 ├── 建立测试替身规范（Fake > Mock）
-├── 设置覆盖率阈值（建议 70% 起步）
+├── 设置覆盖率阈值（建议 70% 起步 [D5]）
 └── 目标：后端 API 有单元测试保护
 
 第 5-6 周：集成测试 + 契约测试
@@ -975,10 +1055,10 @@ def test_pending_order_can_be_cancelled():
 | 周 | 里程碑 | 验收标准 |
 |---|--------|---------|
 | 2 | CI 跑通 | 提交代码自动触发单元测试 |
-| 4 | 后端保护 | 核心 API 有 TDD 保护，覆盖率 70%+ |
+| 4 | 后端保护 | 核心 API 有 TDD 保护，覆盖率 70%+ [D5] |
 | 6 | 接口保护 | 微服务间有契约测试 |
 | 8 | 流程保护 | 核心用户流程有 E2E |
-| 10 | 管线成熟 | Presubmit <2 分钟，有覆盖率报告 |
+| 10 | 管线成熟 | Presubmit <2 分钟 [D9]，有覆盖率报告 |
 | 12 | 全面覆盖 | 性能 + 安全扫描纳入管线 |
 
 ### 🔴 CHECKPOINT：落地过程中的强制检查点
@@ -988,7 +1068,7 @@ def test_pending_order_can_be_cancelled():
 | **CP1** | 第 2 周末 | CI 能自动跑测试？测试通过率 >95%？ | 回退，修复 CI 配置 |
 | **CP2** | 第 4 周末 | 核心 API 有 TDD？覆盖率 ≥70%？ | 补写测试，不推进下一步 |
 | **CP3** | 第 6 周末 | 契约测试跑通？服务间接口有保护？ | 契约不兼容则阻断部署 |
-| **CP4** | 第 8 周末 | 核心 E2E 稳定？Flaky 率 <2%？ | 治理 Flaky Test 后再推进 |
+| **CP4** | 第 8 周末 | 核心 E2E 稳定？Flaky 率 <2% [D11]？ | 治理 Flaky Test 后再推进 |
 | **CP5** | 第 12 周末 | 全管线跑通？度量仪表盘有数据？ | 回顾并补齐缺失环节 |
 
 **规则**：每个检查点必须明确通过/不通过。不通过时不推进下一步，先修复再继续。
@@ -1001,10 +1081,10 @@ def test_pending_order_can_be_cancelled():
 
 | 指标 | 计算方式 | 健康值 | 说明 |
 |------|---------|--------|------|
-| **代码覆盖率** | 被测代码行 / 总代码行 | 70-80% | 不追求 100%，关注关键路径 |
+| **代码覆盖率** | 被测代码行 / 总代码行 | 70-80% [D5] | 不追求 100%，关注关键路径 |
 | **测试通过率** | 通过 / 总测试 | >95% | <95% 说明测试套件不可信 |
 | **Flaky 率** | flaky / 总测试 | <2% | >5% 开发者会忽略失败 |
-| **Presubmit 时间** | 提交到反馈的时间 | <2 分钟 | >5 分钟开发者会跳过 |
+| **Presubmit 时间** | 提交到反馈的时间 | <2 分钟 [D9] | >5 分钟开发者会跳过 |
 | **Bug 拦截率** | 测试发现 / 总 bug | >60% | 衡量测试有效性 |
 | **MTTR** | 发现到修复的平均时间 | <1 天 | 衡量反馈循环效率 |
 
@@ -1146,8 +1226,59 @@ James Bach (HTSM/CDT)
 
 ---
 
+## 🔒 输出约束铁律（引用门禁）
+
+> **核心原则：每个输出必须可追溯到参考资料，无法追溯的必须显式标为"推测"。**
+
+### 铁律1：引用标注规则
+
+| 输出类型 | 约束 | 格式 |
+|---------|------|------|
+| 工具/框架推荐 | **必须**来自「工具选型决策树」或「调研来源」 | `工具名（来源：文献名）` |
+| 方法论描述 | **必须**有对应模型的来源标注 | `方法（来源：作者/文献）` |
+| 代码示例 | **必须**基于参考文献中的示例改编，或明确标为"示例代码" | 代码块前注明 `基于XX改编` 或 `示例代码` |
+| 数字/阈值 | **必须**来自参考文献或明确标为"经验值" | `70%（来源：Google Testing）` 或 `70%（经验值）` |
+| 推测性判断 | **必须**显式标记 `[推测]`，不得与事实混排 | `[推测] 如果团队规模小，可以...` |
+
+### 铁律2：禁止行为清单
+
+| 禁止行为 | 原因 | 替代做法 |
+|---------|------|---------|
+| 无来源地创造新方法论 | Skill 不是论文作者，是知识搬运者 | 引用现有方法论，标注来源 |
+| 把多个来源"融合"成新概念 | 融合可能产生误解 | 分别引用，说明各自适用场景 |
+| 用"一般来说""通常""实践中发现"等模糊措辞 | 暗示普遍共识但无来源 | 改为 `[推测]` 或引用具体来源 |
+| 给出超出参考资料范围的工具推荐 | Skill 不做工具评测 | 只推荐参考资料中明确提到的工具 |
+| 对参考资料中的"局限"自行补充解决方案 | 局限就是局限，不要自作聪明 | 原样呈现局限，让用户判断 |
+
+### 铁律3：输出自检清单
+
+每次输出前，逐条检查：
+
+```
+□ 每个方法论/工具推荐是否标注了来源？
+□ 是否存在无来源的推测性内容？如有，是否标了 [推测]？
+□ 代码示例是否基于参考文献？还是自行编造？
+□ 数字/阈值是否有来源支撑？
+□ 是否有"一般来说""通常"等模糊措辞？如有，是否有来源？
+□ 是否做了参考资料范围之外的承诺？
+```
+
+### 铁律4：超范围请求处理
+
+当用户问题超出本 Skill 参考资料范围时：
+
+```
+1. 明确告知："此问题超出了本技能的参考资料范围"
+2. 列出本 Skill 能覆盖的相关部分
+3. 建议用户查阅哪些外部资料
+4. 不自行编造答案
+```
+
+---
+
 ## 诚实边界
 
+### 能力边界
 - **不能替代测试策略设计** — 本技能聚焦执行层，策略设计由测试工程师（Bach 视角）负责
 - **Google 的工具链不可直接复制** — Bazel、TAP 是 Google 规模的产物，小团队需简化
 - **TDD 不是万能的** — 探索性代码、GUI、一次性脚本等场景需要灵活处理
@@ -1156,45 +1287,101 @@ James Bach (HTSM/CDT)
 - **契约测试的投入有门槛** — 小团队/单体应用可能不需要
 - **性能测试结果高度依赖环境** — 必须在封闭环境中运行
 - **安全测试工具误报率不低** — 建议从高严重度开始
-- **Testing vs Checking 的区分有争议** — 本技能引用 Bach 的观点作为校准，但不强制日常用语中区分
 - **调研截止 2026 年 6 月** — 工具和实践可能已更新
+
+### 内在张力（本技能未完全解决的争议）
+
+| 张力 | 两面 | 本技能立场 |
+|------|------|-----------|
+| **TDD vs 探索性编程** | TDD 要求先写测试，但探索性编程需要先试再定 | TDD 是默认，但承认探索性编程的合法性 [D1] |
+| **契约测试投入 vs 小团队资源** | 契约测试能替代大量 E2E，但搭建有门槛 | 建议渐进式引入，先做 1 对服务 POC [D16] |
+| **封闭测试理想 vs 现实环境** | 封闭测试确定性高，但搭建成本也高 | 从单元测试封闭化开始，逐步推进 [D8] |
+| **AI 辅助效率 vs 断言质量** | AI 能 80% 提速，但断言可能过于宽松 | 人写测试定义，AI 生成实现，人审查质量 [D4] |
+| **Testing vs Checking** | 自动化的是 checking，不是 testing | 引用 Bach 观点校准定位，但不强制日常用语区分 [D13] |
+| **覆盖率目标** | 70-80% 是性价比拐点，但具体数字因项目而异 | 不追求 100%，关注关键路径 [D5] |
 
 ---
 
-## 调研来源
+## 调研来源（指定官方文档）
 
-### 一手来源
+> **铁律：本 Skill 的每一条建议必须可追溯到以下官方文档。引用时标注文档编号（如 [D1]）+ 章节。**
 
-| 来源 | 作者 | 年份 |
-|------|------|------|
-| 《Test-Driven Development: By Example》 | Kent Beck | 2002 |
-| 《Extreme Programming Explained》 | Kent Beck | 1999/2004 |
-| 《Tidy First?》 | Kent Beck | 2023 |
-| B+Tree3 CLAUDE.md | Kent Beck | 2025 |
-| Pragmatic Engineer 播客 | Kent Beck | 2025 |
-| 《Software Engineering at Google》 | Google | 2020 |
-| 《How Google Tests Software》 | James Whittaker | 2012 |
-| Google Testing Blog (TotT) | Google | 2007- |
-| ICST 2023/2026 论文 | Google Engineers | 2023/2026 |
-| satisfice.com (HTSM) | James Bach | 2000- |
-| Pact 官方文档 | Pact | 持续更新 |
-| Martin Fowler CDC 文章 | Martin Fowler | 持续更新 |
-| Microsoft Engineering Playbook | Microsoft | 持续更新 |
-| Thoughtworks AI 测试实验 | Thoughtworks | 2025 |
-| Diffblue 基准测试 | Diffblue | 2025 |
-| k6 / Grafana 文档 | Grafana | 持续更新 |
-| OWASP 测试指南 | OWASP | 持续更新 |
-| Semgrep / Snyk 文档 | 各厂商 | 持续更新 |
+### 一、一手官方文档（权威来源）
 
-### 二手来源
+| 编号 | 文档名称 | 官方链接 | 对应模型 |
+|------|---------|---------|---------|
+| **D1** | Kent Beck《Test-Driven Development: By Example》 | https://www.amazon.com/dp/0321146530 | 模型1 TDD |
+| **D2** | Kent Beck B+Tree3 CLAUDE.md（TDD + Tidy First 规则） | https://github.com/KentBeck/BPlusTree3/blob/main/rust/docs/CLAUDE.md | 模型1、模型6 |
+| **D3** | Kent Beck Substack（Tidy First? + TDD + AI） | https://tidyfirst.substack.com/ | 模型1、模型6、模型8 |
+| **D4** | Pragmatic Engineer 播客：TDD + AI with Kent Beck (2025) | https://www.pragmaticengineer.com/ | 模型1、模型8 |
+| **D5** | 《Software Engineering at Google》在线版 | https://abseil.io/resources/swe-book | 模型2/3/4/5 |
+| **D6** | 《Software Engineering at Google》Ch.11 测试概述 | https://abseil.io/resources/swe-book/html/ch11.html | 模型2 测试金字塔 |
+| **D7** | 《Software Engineering at Google》Ch.13 测试替身 | https://abseil.io/resources/swe-book/html/ch13.html | 模型3 测试替身 |
+| **D8** | 《Software Engineering at Google》Ch.14 封闭测试 | https://abseil.io/resources/swe-book/html/ch14.html | 模型5 封闭测试 |
+| **D9** | 《Software Engineering at Google》Ch.23 CI/CD 管线 | https://abseil.io/resources/swe-book/html/ch23.html | 模型4 CI/CD |
+| **D10** | Google Engineering Practices 文档 | https://google.github.io/eng-practices/ | 模型4 Code Review |
+| **D11** | Google Testing Blog（TotT 系列） | https://testing.googleblog.com/ | 模型2/3/4 |
+| **D12** | James Bach HTSM（启发式测试策略模型 v6.3） | https://www.satisfice.com/download/heuristic-test-strategy-model | 模型7 风险驱动 |
+| **D13** | James Bach Testing vs Checking | https://www.satisfice.com/blog/archives/856 | 模型7 |
+| **D14** | Playwright 官方文档 | https://playwright.dev/docs/intro | 模型2 E2E |
+| **D15** | Playwright 最佳实践 | https://playwright.dev/docs/best-practices | 模型2 |
+| **D16** | Pact 官方文档（契约测试） | https://docs.pact.io/ | 模型9 契约测试 |
+| **D17** | Pact 消费者测试指南（Python） | https://docs.pact.io/implementation_guides/python/docs/consumer | 模型9 |
+| **D18** | Pact 提供者验证指南 | https://docs.pact.io/implementation_guides/python/docs/provider | 模型9 |
+| **D19** | Martin Fowler 消费者驱动契约 | https://martinfowler.com/articles/consumerDrivenContracts.html | 模型9 |
+| **D20** | k6 官方文档 | https://grafana.com/docs/k6/latest/ | 模型10 性能测试 |
+| **D21** | k6 Thresholds（阈值断言） | https://grafana.com/docs/k6/latest/using-k6/thresholds/ | 模型10 |
+| **D22** | k6 CI/CD 集成指南 | https://grafana.com/docs/k6/latest/reference/integrations/ | 模型10 |
+| **D23** | Semgrep 官方文档（SAST） | https://semgrep.dev/docs/ | 模型11 安全测试 |
+| **D24** | Semgrep CI 集成 | https://semgrep.dev/docs/semgrep-ci/overview/ | 模型11 |
+| **D25** | Snyk 官方文档（SCA） | https://docs.snyk.io/ | 模型11 |
+| **D26** | OWASP Web Security Testing Guide (WSTG) | https://owasp.org/www-project-web-security-testing-guide/ | 模型11 |
+| **D27** | OWASP Top 10 (2021/2025) | https://owasp.org/www-project-top-ten/ | 模型11 |
+| **D28** | OWASP ZAP 官方文档 | https://www.zaproxy.org/docs/ | 模型11 |
+| **D29** | pytest 官方文档 | https://docs.pytest.org/en/stable/ | 模型1 代码示例 |
+| **D30** | pytest-asyncio 文档 | https://pytest-asyncio.readthedocs.io/ | 模型1 |
+| **D31** | 《Tidy First?》 | https://www.amazon.com/dp/B0CL4GYMTH | 模型6 简单设计 |
+| **D32** | 《Extreme Programming Explained》 | https://www.amazon.com/dp/0321278658 | 模型6 |
+| **D33** | Thoughtworks AI 测试实验报告 | https://www.thoughtworks.com/insights | 模型8 |
+| **D34** | Diffblue Cover 官方文档 | https://www.diffblue.com/resources/ | 模型8 |
+| **D35** | Google Cloud「How TDD Amplifies AI Success」 | https://cloud.google.com/architecture/devops | 模型8 |
+| **D36** | Microsoft Engineering Playbook | https://microsoft.github.io/code-with-engineering-playbook/ | 模型4/9 |
+| **D37** | GitHub Actions 官方文档 | https://docs.github.com/en/actions | 模型4 CI 配置 |
 
-| 来源 | 可信度 |
-|------|--------|
-| 极客文档（SWE at Google 中文版） | 高 |
-| Kent Beck 访谈中文整理 | 高 |
-| 腾讯云开发者社区 | 中高 |
-| CSDN 工具对比评测 | 中 |
-| 测试社区分析文章 | 中 |
+### 二、引用规范
+
+| 引用场景 | 格式 | 示例 |
+|---------|------|------|
+| 方法论描述 | `方法名 [D编号, 章节]` | `Red-Green-Refactor [D1, Ch.2]` |
+| 工具推荐 | `工具名 [D编号]` | `Playwright [D14]` |
+| 代码示例 | `基于 [D编号] 改编` | `基于 [D29, Fixtures] 改编` |
+| 数字/阈值 | `数值 [D编号]` | `70-80% [D5, Ch.11]` |
+| 最佳实践 | `实践 [D编号, 具体章节URL]` | `测试隔离 [D15, #test-isolation]` |
+| 推测性内容 | `[推测] 内容` | `[推测] 小团队可简化为...` |
+
+### 三、二手来源（仅作补充参考）
+
+| 来源 | 可信度 | 用途 |
+|------|--------|------|
+| 极客文档（SWE at Google 中文版） | 高 | 辅助理解 [D5] |
+| Kent Beck 访谈中文整理 | 高 | 辅助理解 [D1-D4] |
+| 腾讯云开发者社区 | 中高 | 工具对比参考 |
+| CSDN 工具对比评测 | 中 | 仅作背景了解 |
+| 测试社区分析文章 | 中 | 仅作背景了解 |
+
+### 四、文档更新策略
+
+```
+每季度检查一次：
+├── D1-D4: Kent Beck 有无新文章/访谈/项目
+├── D5-D11: Google Testing Blog 有无新 TotT
+├── D12-D13: satisfice.com 有无更新
+├── D14-D15: Playwright 版本变更
+├── D16-D19: Pact 文档更新
+├── D20-D22: k6 版本变更
+├── D23-D28: OWASP/Semgrep/Snyk 更新
+└── D29-D30: pytest 版本变更
+```
 
 ---
 
