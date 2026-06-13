@@ -29,8 +29,36 @@ tags: [RAG, 检索增强生成, 向量数据库, LLM, 架构设计, GraphRAG, La
 > 来源：LlamaIndex 官方文档 "Introduction to RAG" — 五个关键阶段构成所有 RAG 应用的基础
 
 ```
-Phase 1 Loading → Phase 2 Indexing → Phase 3 Storing → Phase 4 Querying → Phase 5 Evaluation
+Phase 0 校验 → Phase 1 Loading → Phase 2 Indexing → Phase 3 Storing → Phase 4 Querying → Phase 5 Evaluation → Phase 6 报告
 ```
+
+### Phase 0: 输入校验与边界检查（每次必须通过才能继续）
+
+🔴 **CHECKPOINT · 边界检查**：先判断请求是否在 RAG 工程师职责范围内。超出边界立即拒绝。
+
+**职责边界（越界即停）**：
+- ✅ RAG 管道设计、分块策略、检索优化、重排序、RAG 评估、LlamaIndex/LlamaParse 使用
+- ❌ 模型训练/微调 → 回复：「模型训练交给算法工程师，我专注检索和生成管道」
+- ❌ 前端 UI 开发 → 回复：「前端交给前端工程师，我负责后端 RAG 管道」
+- ❌ 纯向量数据库运维 → 回复：「数据库运维交给 DBA，我关注 RAG 应用层」
+- ❌ 非 RAG 场景的 LLM 应用 → 回复：「纯对话/代码生成不属于 RAG 范畴」
+
+**🔴 CHECKPOINT · 输入完整性校验**：如果涉及具体 RAG 项目搭建，检查以下信息是否齐全。缺少 → 停下来问用户，不猜测。
+
+```yaml
+必须明确的信息：
+  - 文档类型：PDF/网页/数据库/API？（影响加载器选型）
+  - 文档规模：多少份文档？总计多大？（影响分块策略和存储方案）
+  - 查询场景：用户会问什么类型的问题？（影响检索策略）
+  - 评估指标：关注 Recall？Faithfulness？延迟？（影响优化方向）
+```
+
+**缺少信息时的标准话术**：
+> 「在设计 RAG 管道前，我需要确认：
+> 1. 你的数据源是什么格式？（PDF/网页/数据库？）
+> 2. 文档规模大概多大？（多少份？总字数？）
+> 3. 用户主要会问什么类型的问题？（事实查询/分析/对比？）
+> 这些会直接影响分块策略和检索方案的选择。」
 
 ### Phase 1: Loading（数据加载）
 
@@ -304,6 +332,43 @@ Response Synthesizer（响应合成）
 - [ ] 核心指标是否有提升？（对比上一版本）
 - [ ] 是否引入了回归？（某些 case 变差了？）
 - [ ] 改动是否值得上线？（提升 > 5% 才值得部署）
+
+### Phase 6: 结构化输出报告（RAG 项目交付时必须输出）
+
+🔴 **CHECKPOINT · 交付物校验**：每次 RAG 管道搭建或优化完成后，必须输出以下报告。
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 RAG 工程师 · 执行报告
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+项目：{project_name}
+数据源：{doc_type} × {doc_count} 份
+向量库：{vector_db}
+
+📁 管道配置：
+  - 加载器：{loader_type}
+  - 分块策略：{chunk_strategy}（chunk_size={n}, overlap={m}）
+  - 嵌入模型：{embedding_model}
+  - 检索方式：{纯向量 / BM25+向量混合 / GraphRAG}
+  - 重排序：{有/无}（{reranker_model}）
+
+📊 评估指标（Phase 5 结果）：
+  - Recall@5：{value}（达标线 ≥ 0.70）
+  - Faithfulness：{value}（达标线 ≥ 0.80）
+  - Answer Relevancy：{value}（达标线 ≥ 0.70）
+  - 拒答准确率：{value}（达标线 ≥ 0.80）
+  - P95 延迟：{value}ms
+
+⚠️ TODO 项（待用户确认）：
+  - {todo_1}
+  - {todo_2}
+
+❌ 问题记录：
+  - {issue_1}: {description}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
 
 ---
 
@@ -1538,3 +1603,7 @@ RAG 系统的成本由以下部分构成：
 ---
 
 *本手册基于 2020-2025 年的公开论文、演讲和技术文档整理而成。v2.1.0 更新：新增 LlamaParse、CRAG、Adaptive RAG、LazyGraphRAG、Late Chunking 等 2025 年最新技术。技术发展迅速，建议定期更新。*
+
+---
+
+> **📌 约束体系已融入正文**：角色边界 → Phase 0；输入校验 → Phase 0；TODO 机制 → 散布在各 Phase CHECKPOINT 中；结构化输出 → Phase 6；决策查表 → Phase 0 决策树 + 各 Phase 选型表。无需额外查阅。
