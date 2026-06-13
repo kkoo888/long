@@ -1,106 +1,64 @@
 ---
 name: automation-test-engineer
 description: |
-  自动化测试工程师执行手册。收到指令后，按固定流程对目标项目执行自动化测试：诊断技术栈 → 配置环境 → 生成测试代码 → 运行验证 → 配置 CI → 输出报告。
-  触发词：「自动化测试」「测试项目」「写测试」「测试覆盖」「CI测试」「TDD」「测试代码」
-  不适用：纯探索性测试、非软件领域的质量管理。
-version: "2.0.0"
-author: "重构自执行流程，参考 Kent Beck TDD + Google Testing + James Bach HTSM"
+  自动化测试工程师（执行官）：接收测试工程师的任务清单，执行搭建、生成、运行、CI 配置、出报告。
+  核心能力：环境搭建、测试代码生成、测试运行、CI 配置、报告输出。
+  触发词：「执行测试」「搭建测试」「自动化测试」「运行测试」「配置CI」
+  不适用：代码分析和测试场景推导（交给测试工程师）。
+version: "2.1.0"
+author: "执行导向，配合测试工程师参谋长使用"
 ---
 
-# 自动化测试工程师 · 执行手册
+# 自动化测试工程师 · 执行官操作手册
 
 ## 执行总流程
 
 ```
-用户指令："对 XX 项目做自动化测试"
+输入：测试工程师的任务清单（含函数、场景、预期输出、Mock策略）
   ↓
-Phase 0 → 诊断项目（技术栈、现有测试、核心模块）
 Phase 1 → 配置环境（安装框架、生成配置文件）
-Phase 2 → 生成测试代码（按模板，按风险优先级）
-Phase 3 → 运行验证（跑测试、出覆盖率、修复失败）
-Phase 4 → 配置 CI（GitHub Actions / GitLab CI）
-Phase 5 → 输出报告（测试文件清单、覆盖率、CI 状态）
+Phase 2 → 按任务清单生成测试代码
+Phase 3 → 运行测试（跑测试、修复失败、出覆盖率）
+Phase 4 → 配置 CI
+Phase 5 → 输出执行报告（交给测试工程师评分）
 ```
 
-**执行原则：每一步都是确定性操作，不猜测，不假设，不编造。**
+**原则：不分析代码语义，不推导测试场景。这些由测试工程师完成。拿到任务清单直接执行。**
 
 ---
 
-## Phase 0：项目诊断
+## Phase 0：接收任务清单
 
-### 0.1 识别技术栈
+从测试工程师接收任务清单，包含以下信息：
 
-在项目根目录运行以下命令，根据结果判断技术栈：
+```yaml
+项目：{project_name}
+技术栈：{tech_stack}          # Python / Node.js / Java / Go
+测试框架：{test_framework}     # pytest / Jest / JUnit5
+项目根目录：{project_root}
 
-```bash
-# 检查项目根目录文件
-ls -la <project_root>/
+任务：
+  - id: T-001
+    优先级: P0                 # P0 最高，P3 最低
+    文件: src/discount.py
+    函数: calculate_discount
+    测试文件: tests/test_discount.py
+    测试用例:
+      - name: test_calculate_discount_vip_high_amount
+        输入: Order(amount=1001, is_vip=True)
+        预期: 151.15
+    Mock策略: 无
+    边界值:
+      - amount=1000
+      - amount=1001
 ```
 
-**判断规则（确定性，按优先级匹配）：**
+**执行前验证：**
+- 技术栈和测试框架是否已识别 ✅
+- 项目根目录是否存在 ✅
+- 任务清单是否非空 ✅
 
-| 发现的文件 | 技术栈 | 测试框架 | 配置文件 |
-|-----------|--------|---------|---------|
-| `pyproject.toml` / `setup.py` / `setup.cfg` / `requirements.txt` | Python | pytest | `pyproject.toml [tool.pytest]` 或 `pytest.ini` |
-| `package.json` | Node.js/前端 | Jest 或 Vitest | `jest.config.js` 或 `vitest.config.ts` |
-| `go.mod` | Go | testing（标准库） | 无需额外配置 |
-| `pom.xml` / `build.gradle` | Java | JUnit 5 | Maven Surefire 插件 / Gradle Test |
-| `Cargo.toml` | Rust | cargo test | 无需额外配置 |
-| `*.sln` / `*.csproj` | C# | xUnit / NUnit | .NET test 命令 |
-
-**如果有 `package.json`，进一步判断前后端：**
-- 存在 `react` / `vue` / `angular` / `svelte` → 前端项目 → Jest + Playwright（E2E）
-- 存在 `express` / `fastify` / `koa` / `nestjs` → 后端项目 → Jest
-- 两者都有 → 前后端分别处理
-
-### 0.2 检查现有测试
-
-```bash
-# 查找已有测试目录和文件
-find <project_root>/ -maxdepth 3 -type f \( -name "test_*.py" -o -name "*_test.py" -o -name "*_test.go" -o -name "*.test.js" -o -name "*.test.ts" -o -name "*.spec.js" -o -name "*.spec.ts" -o -name "*Test.java" \) 2>/dev/null
-
-# 查找已有测试目录
-find <project_root>/ -maxdepth 2 -type d -name "test*" -o -name "__tests__" -o -name "spec" 2>/dev/null
-
-# 检查是否已有测试框架依赖
-# Python
-grep -r "pytest\|unittest" pyproject.toml setup.py requirements.txt 2>/dev/null
-# Node.js
-cat package.json | grep -E '"jest"|"vitest"|"mocha"|"playwright"' 2>/dev/null
-# Java
-grep -r "junit\|testng" pom.xml build.gradle 2>/dev/null
-```
-
-**记录诊断结果：**
-- 已有测试框架：[有/无]，类型：[xxx]
-- 已有测试文件：[数量] 个
-- 覆盖率工具：[已配置/未配置]
-
-### 0.3 分析项目结构，确定核心模块
-
-```bash
-# 查看目录结构（排除无关目录）
-find <project_root>/src -maxdepth 2 -type f -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.java" -o -name "*.go" 2>/dev/null | head -50
-
-# 如果没有 src/，查看根目录下的代码文件
-find <project_root>/ -maxdepth 2 -type f \( -name "*.py" -o -name "*.js" -o -name "*.ts" \) ! -path "*/node_modules/*" ! -path "*/.git/*" ! -path "*/test*" 2>/dev/null | head -50
-```
-
-**排除规则（不测试的目录/文件）：**
-- `node_modules/`、`.git/`、`dist/`、`build/`、`__pycache__/`
-- 已有的 `test*`、`__tests__/`、`spec/` 目录
-- 纯配置文件（`config.py`、`settings.js`）
-- 纯入口文件（`main.py`（仅含 `if __name__`）、`index.js`（仅含 import/导出））
-
-**测试优先级（从高到低）：**
-
-| 优先级 | 模块类型 | 原因 |
-|--------|---------|------|
-| P0 | 数据处理、业务逻辑、算法 | 错误影响最大 |
-| P1 | API 接口、路由、控制器 | 对外暴露，用户直接接触 |
-| P2 | 数据库操作、ORM 模型 | 数据一致性关键 |
-| P3 | 工具函数、辅助方法 | 错误影响相对小 |
+**如果缺少任务清单，提示用户：「请先运行测试工程师生成任务清单」。**
 
 ---
 
@@ -221,139 +179,172 @@ mkdir -p <project_root>/src/test/java  # Java (Maven 标准)
 
 ---
 
-## Phase 2：生成测试代码
+## Phase 2：按任务清单生成测试代码
 
-### 2.1 扫描并列出待测模块
+**输入：测试工程师的任务清单（含函数名、测试用例、预期输出、Mock策略）**
+**输出：每个任务对应的测试文件**
 
-对 Phase 0 中识别的核心模块，逐个生成测试文件。
+### 2.1 按优先级遍历任务清单
 
-### 2.2 生成测试代码 — 按模板填充
+从 P0 开始，逐个任务执行。对每个任务：
 
-**Python 测试模板：**
+1. 创建测试文件（路径由任务清单指定）
+2. 按任务清单中的测试用例列表生成代码
+3. 如果有 Mock 策略，生成对应的 Mock 代码
+4. 如果有边界值，补充边界值测试
+
+### 2.2 测试代码生成规则
+
+**Python：**
 
 ```python
 """
-测试模块：{module_name}
-来源：{source_file_path}
+测试：{函数名}
+来源：{源文件路径}
+任务ID：{task_id}
 """
 import pytest
-from {import_path} import {ClassName_or_Function}
+from {import_path} import {函数名}
 
 
-class Test{ClassName}:
-    """{ClassName} 的单元测试"""
+def test_{函数名}_{场景描述}(self):
+    """任务清单场景：{场景描述}"""
+    # Arrange - 输入来自任务清单
+    input_data = {任务清单中的输入}
 
-    def test_{method}_正常输入(self):
-        """正常输入应返回预期结果"""
-        # Arrange
-        instance = {ClassName}()
-        input_data = {normal_input}
+    # Act
+    result = {函数名}(input_data)
 
-        # Act
-        result = instance.{method}(input_data)
+    # Assert - 预期输出来自任务清单
+    assert result == {任务清单中的预期输出}
 
-        # Assert
-        assert result == {expected_output}
 
-    def test_{method}_边界_空值(self):
-        """空值输入应正确处理"""
-        instance = {ClassName}()
-        with pytest.raises({ExpectedException}):
-            instance.{method}(None)
+# 如果有 Mock 策略
+def test_{函数名}_{场景描述}_with_mock(self, mocker):
+    """任务清单场景：{场景描述}（含 Mock）"""
+    mock_dep = mocker.patch('{mock目标路径}')
+    mock_dep.return_value = {mock返回值}
 
-    def test_{method}_边界_空集合(self):
-        """空集合输入应返回空结果"""
-        instance = {ClassName}()
-        result = instance.{method}([])
-        assert result == []  # 或对应的空结果
+    result = {函数名}({输入})
+    assert result == {预期输出}
+
+
+# 如果有异常路径
+def test_{函数名}_{异常场景}(self):
+    """任务清单场景：{异常场景}"""
+    with pytest.raises({异常类型}):
+        {函数名}({触发异常的输入})
 ```
 
-**Node.js 测试模板：**
+**Node.js：**
 
 ```javascript
 /**
- * 测试模块：{module_name}
- * 来源：{source_file_path}
+ * 测试：{函数名}
+ * 来源：{源文件路径}
+ * 任务ID：{task_id}
  */
-const { functionOrClass } = require('{import_path}');
+const { 函数名 } = require('{import_path}');
 
-describe('{module_name}', () => {
-  test('{function} 正常输入应返回预期结果', () => {
-    // Arrange
-    const input = {normal_input};
+describe('{函数名}', () => {
+  test('{场景描述}', () => {
+    // Arrange - 输入来自任务清单
+    const input = {任务清单中的输入};
 
     // Act
-    const result = functionOrClass(input);
+    const result = 函数名(input);
 
-    // Assert
-    expect(result).toEqual({expected_output});
+    // Assert - 预期输出来自任务清单
+    expect(result).toEqual({任务清单中的预期输出});
   });
 
-  test('{function} 边界：空值应抛出错误', () => {
-    expect(() => functionOrClass(null)).toThrow();
+  // 如果有 Mock 策略
+  test('{场景描述} (with mock)', () => {
+    const mockFn = jest.fn().mockReturnValue({mock返回值});
+    const result = 函数名({输入}, mockFn);
+    expect(result).toEqual({预期输出});
   });
 
-  test('{function} 边界：空数组应返回空结果', () => {
-    const result = functionOrClass([]);
-    expect(result).toEqual([]);
+  // 如果有异常路径
+  test('{异常场景}', () => {
+    expect(() => 函数名({触发异常的输入})).toThrow();
   });
 });
 ```
 
-**Java 测试模板：**
+**Java：**
 
 ```java
 /**
- * 测试类：{ClassName}Test
- * 来源：{source_file_path}
+ * 测试：{函数名}
+ * 来源：{源文件路径}
+ * 任务ID：{task_id}
  */
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import static org.junit.jupiter.api.Assertions.*;
 
-class {ClassName}Test {
+class {函数名}Test {
 
-    private {ClassName} instance;
+    private {类名} instance;
 
     @BeforeEach
     void setUp() {
-        instance = new {ClassName}();
+        instance = new {类名}();
     }
 
     @Test
-    void test{Method}_正常输入() {
-        // Arrange
-        var input = {normal_input};
+    void test{函数名}_{场景描述}() {
+        // Arrange - 输入来自任务清单
+        var input = {任务清单中的输入};
 
         // Act
-        var result = instance.{method}(input);
+        var result = instance.{函数名}(input);
 
-        // Assert
-        assertEquals({expected_output}, result);
+        // Assert - 预期输出来自任务清单
+        assertEquals({任务清单中的预期输出}, result);
     }
 
     @Test
-    void test{Method}_边界_空值() {
-        assertThrows({ExpectedException}.class, () -> {
-            instance.{method}(null);
+    void test{函数名}_{异常场景}() {
+        assertThrows({异常类型}.class, () -> {
+            instance.{函数名}({触发异常的输入});
         });
     }
 }
 ```
 
-### 2.3 测试用例生成规则
+### 2.3 Mock 代码生成规则
 
-**每个函数/方法至少生成以下测试用例：**
+当任务清单中 Mock 策略不为"无"时：
 
-| 用例类型 | 说明 | 必须？ |
-|---------|------|--------|
-| 正常输入 | 典型的正确输入，验证基本功能 | ✅ |
-| 边界：空值/None/null | 验证空值处理 | ✅ |
-| 边界：空集合 | 空数组、空字典、空字符串 | ✅ |
-| 边界：极值 | 最大值、最小值、超长输入 | 推荐 |
-| 异常路径 | 非法输入、类型错误 | 推荐 |
+**Python pytest-mock：**
+```python
+# Mock 外部依赖
+def test_{函数名}_with_mock(mocker):
+    mock_{依赖名} = mocker.patch('{模块路径}.{依赖函数名}')
+    mock_{依赖名}.return_value = {任务清单中的mock返回值}
+    # ... 测试逻辑
+```
 
-**不要猜测业务逻辑。** 如果函数的预期行为不明确（无法从函数签名和代码推断），在测试文件中用 `# TODO: 需确认 {function_name} 在 {scenario} 下的预期行为` 标注，不要编造断言。
+**Node.js Jest：**
+```javascript
+// Mock 外部依赖
+jest.mock('{模块路径}');
+const mockModule = require('{模块路径}');
+mockModule.{函数名}.mockReturnValue({mock返回值});
+```
+
+### 2.4 处理 `# TODO` 标记
+
+如果任务清单中某个测试用例的预期输出标记为 `# TODO: 需确认`，在生成的测试代码中保留该标记：
+
+```python
+def test_{函数名}_{场景}(self):
+    # TODO: 需确认 {函数名} 在 {场景} 下的预期行为
+    # 任务清单原始描述：{描述}
+    pass  # 跳过此用例，待确认后补充
+```
 
 ---
 
@@ -489,35 +480,49 @@ test:
 
 ---
 
-## Phase 5：输出报告
+## Phase 5：输出执行报告
 
-所有步骤完成后，向用户输出以下报告：
+所有步骤完成后，向测试工程师输出以下执行报告，供其评分：
 
 ```
-📊 自动化测试报告
-━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 执行报告（交给测试工程师评分）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 项目：{project_name}
 技术栈：{tech_stack}
 测试框架：{test_framework}
 
 📁 测试文件清单：
-  - tests/test_user.py (3 个用例)
-  - tests/test_order.py (5 个用例)
-  - tests/test_payment.py (4 个用例)
+  - tests/test_user.py (3 个用例) ✅
+  - tests/test_order.py (5 个用例) ✅
+  - tests/test_payment.py (4 个用例，1 个 TODO) ⚠️
 
-📈 覆盖率：
+📈 测试运行结果：
+  - 总用例数：12
+  - 通过：11 ✅
+  - 失败：1 ❌
+  - 跳过（TODO）：1
+
+📊 覆盖率：
   - 总体：78%
   - src/user.py: 85%
   - src/order.py: 72%
-  - src/payment.py: 68% ⚠️ 低于 70%
+  - src/payment.py: 68%
 
 🔧 CI 配置：
   - .github/workflows/test.yml ✅
 
-⚠️ 遗留项：
-  - src/payment.py 覆盖率不足，建议补充 refund 相关测试
-  - tests/test_order.py 中 2 个 TODO 待确认业务逻辑
+❌ 失败详情：
+  - test_process_payment_gateway_timeout:
+    原因：Mock 未正确设置
+    对应任务：T-002
+
+⚠️ TODO 项：
+  - tests/test_payment.py: test_process_payment_zero_amount
+    原因：任务清单中标记为 # TODO: 需确认
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 ---
