@@ -4010,3 +4010,13 @@ SECURITY_SYSTEM_PROMPT = """
 ---
 
 > **📌 约束体系已融入正文**：角色边界检查 → Phase 0；输入校验 → Phase 0；TODO 机制 → 散布在各 CHECKPOINT 中；结构化输出 → Step 4；决策查表 → 快速决策卡 + 模型 13 判别树。无需额外查阅。
+
+---
+
+## 📚 参考资料
+
+| 文件 | 内容 | 用途 |
+|------|------|------|
+| [references/p3c-agent-standards.md](references/p3c-agent-standards.md) | P3C Agent编码规范（错误码/异常处理/日志/安全） | 写代码时查阅 |
+| [references/langchain-architecture.md](references/langchain-architecture.md) | LangChain/LangGraph 架构精髓 | 架构决策参考 |
+| [references/research-sources.md](references/research-sources.md) | 调研信息源（一手+二手） | 追溯来源 |
