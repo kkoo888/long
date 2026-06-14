@@ -7,6 +7,7 @@ description: |
   用途：作为技术美术思维顾问，用Pierrick的视角审视骨骼绑定、动画质量、角色管线问题。
   当用户提到「用Pierrick的视角」「皮爷视角」「p2design模式」「Pierrick perspective」时使用。
   即使用户只是说「帮我用Pierrick的角度想想」「如果Pierrick会怎么做」也应触发。
+tags: [技术美术, 骨骼绑定, 动画, Blender, 游戏管线, 权重绘制, Pierrick Picaut, p2design]
 ---
 
 # Pierrick Picaut · 技术美术思维操作系统
@@ -132,6 +133,39 @@ description: |
 - 当绑定变得混乱、难以维护时，回到四层架构重新组织
 - 当需要导出到游戏引擎时，四层分离确保形变通道干净
 
+**四层架构实现示例**（Blender Python）：
+
+```python
+import bpy
+
+# 四层骨骼命名规范
+LAYER_CONFIG = {
+    "DEF": {"prefix": "DEF-", "role": "蒙皮骨骼，绑定到mesh"},      # Deform
+    "TGT": {"prefix": "TGT-", "role": "IK/FK目标位置"},              # Target
+    "MCH": {"prefix": "MCH-", "role": "约束和逻辑运算"},              # Mechanism
+    "CTRL": {"prefix": "CTRL-", "role": "动画师可操作的控制器"},       # Controller
+}
+
+def create_four_layer_rig(armature_name="CharacterRig"):
+    """创建四层骨骼架构"""
+    bpy.ops.object.armature_add(enter_editmode=True)
+    armature = bpy.context.active_object
+    armature.name = armature_name
+
+    # 按层创建骨骼，每层用集合管理
+    for layer_name, config in LAYER_CONFIG.items():
+        collection = armature.data.collections.new(layer_name)
+        # 示例：创建脊柱链
+        for i, bone_name in enumerate(["spine", "spine.001", "spine.002"]):
+            bone = armature.data.edit_bones.new(f"{config['prefix']}{bone_name}")
+            bone.head = (0, 0, 0.5 + i * 0.3)
+            bone.tail = (0, 0, 0.8 + i * 0.3)
+            collection.assign(bone)
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+    return armature
+```
+
 **局限**：
 - 简单道具（如门、宝箱）不需要四层，CTRL+DEF两层就够了
 - 对于非人形生物（如蛇、章鱼），层级划分需要调整
@@ -236,6 +270,45 @@ description: |
 - 做绑定规范时：定义权重绘制的量化标准（最大影响骨骼数、归一化容差、对称误差）
 - 教别人权重时：先教工具（对称化、平滑），再教判断（哪里需要手动调整）
 
+**权重验证脚本**（Blender Python）：
+
+```python
+import bpy
+import bmesh
+
+def validate_weights(armature_name, mesh_name, max_influences=4, tolerance=0.001):
+    """验证蒙皮权重是否符合规范"""
+    mesh = bpy.data.objects[mesh_name]
+    armature = bpy.data.objects[armature_name]
+
+    issues = {"too_many_influences": [], "not_normalized": [], "orphan_vertices": []}
+
+    vg_names = {vg.name for vg in mesh.vertex_groups}
+    def_bones = {b.name for b in armature.data.bones if b.name.startswith("DEF-")}
+
+    for v in mesh.data.vertices:
+        # 检查1：每个顶点最多受N根骨骼影响
+        if len(v.groups) > max_influences:
+            issues["too_many_influences"].append(v.index)
+
+        # 检查2：权重归一化（总和=1）
+        total_weight = sum(g.weight for g in v.groups)
+        if abs(total_weight - 1.0) > tolerance and total_weight > 0:
+            issues["not_normalized"].append((v.index, total_weight))
+
+        # 检查3：无悬空顶点（至少有一根骨骼影响）
+        if len(v.groups) == 0:
+            issues["orphan_vertices"].append(v.index)
+
+    return issues
+
+# 使用示例
+issues = validate_weights("CharacterRig", "CharacterMesh")
+print(f"影响数超标: {len(issues['too_many_influences'])} 个顶点")
+print(f"未归一化: {len(issues['not_normalized'])} 个顶点")
+print(f"悬空顶点: {len(issues['orphan_vertices'])} 个顶点")
+```
+
 **局限**：
 - 高度风格化的角色（如Q版、超写实）的权重判断仍有主观成分
 - 面部权重比身体权重更依赖艺术直觉
@@ -272,6 +345,44 @@ description: |
    - 应用场景：绑定设计、管线规范、质量验收
    - 案例：NOARA项目全程Blender→Unity，Pierrick专门做了"Blender to Unreal & Unity"教程，讲解骨骼命名规范、缩放处理、约束烘焙——这些在纯Blender工作流中不需要考虑，但对游戏项目至关重要
 
+**导出前验证脚本**：
+
+```python
+def pre_export_check(armature_name):
+    """导出到引擎前的绑定检查"""
+    armature = bpy.data.objects[armature_name]
+    checks = {"pass": [], "fail": [], "warn": []}
+
+    # 检查1：DEF层骨骼无约束（形变通道干净）
+    for bone in armature.pose.bones:
+        if bone.name.startswith("DEF-"):
+            if bone.constraints:
+                checks["fail"].append(f"{bone.name}: 有 {len(bone.constraints)} 个约束")
+            else:
+                checks["pass"].append(f"{bone.name}: 无约束")
+
+    # 检查2：骨骼命名符合规范
+    for bone in armature.data.bones:
+        prefix = bone.name.split("-")[0] if "-" in bone.name else "NONE"
+        if prefix not in ["DEF", "TGT", "MCH", "CTRL"]:
+            checks["warn"].append(f"{bone.name}: 命名不符合四层规范")
+
+    # 检查3：无超过4根骨骼影响的顶点（引擎兼容性）
+    for obj in bpy.data.objects:
+        if obj.type == 'MESH' and obj.parent == armature:
+            for v in obj.data.vertices:
+                if len(v.groups) > 4:
+                    checks["fail"].append(f"{obj.name} 顶点{v.index}: 受{len(v.groups)}根骨骼影响")
+                    break
+
+    return checks
+
+# 使用示例
+result = pre_export_check("CharacterRig")
+for level, items in result.items():
+    if items:
+        print(f"[{level.upper()}] {len(items)} 项")
+```
 
 ## 失败模式与降级策略
 
@@ -396,6 +507,19 @@ description: |
 - Blender绑定/动画教育生态——四层架构成为教学标准
 - "皮爷"——中文CG社区对他的昵称，Blender动画领域的首选推荐
 - 独立教育创作者经济——从YouTube到Gumroad到自有平台的路径
+
+## 技术反例与黑名单（不要做的事）
+
+| # | 反模式 | 为什么不要做 | 正确做法 |
+|---|--------|------------|---------|
+| 1 | DEF骨骼上直接加约束 | 形变通道被污染，导出后变形异常 | 约束只加在MCH/TGT层 |
+| 2 | 权重不归一化就导出 | 引擎自动归一化导致不可预测的形变 | 导出前运行归一化验证 |
+| 3 | 超过4根骨骼影响一个顶点 | 大多数引擎硬限制，超出直接丢弃 | 限制最大影响数为4 |
+| 4 | 用Ctrl+A全选骨骼统一缩放 | 非均匀缩放导致约束计算错误 | 先应用缩放到1:1再绑定 |
+| 5 | IK/FK切换不做约束烘焙 | 导出后IK链断裂 | 切换前bake全部关键帧 |
+| 6 | 用命名约定代替骨骼分层 | 命名只是表面，层级才是本质 | 四层架构+命名双重保障 |
+| 7 | 面部权重只靠自动权重 | 自动权重在面部几乎不可用 | 手动绘制+对称化工具 |
+| 8 | 不测试就交付绑定 | 问题到动画师手里才暴露 | 交付前做极限姿势测试 |
 
 ## 诚实边界
 
