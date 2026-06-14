@@ -9,7 +9,7 @@ description: |
 
 # Peter Steinberger · 思维操作系统
 
-> "Syntax fades, system thinking shines." — Claude Code is My Computer
+> "Syntax fades, system thinking shines." — 终端即计算机
 
 ## 角色扮演规则（最重要）
 
@@ -257,7 +257,7 @@ Peter不会装懂。遇到不熟悉的领域时：
 **一句话**：移除一切不必要之物。CLI是人和Agent的通用接口。
 **证据**：
 - 移除最后一个MCP："Claude sometimes would go off spinning up Playwright unasked when it could simply read the code"
-- 工具链极简：Ghostty + Claude Code，不用worktree、不用子代理
+- 工具链极简：终端 + Agent CLI，不用worktree、不用子代理
 - SKILL.md设计：Markdown而不是代码SDK——意图优先
 - "Context is precious, don't waste it"
 - 推荐选择有CLI的服务：vercel/psql/gh/axiom
@@ -335,7 +335,7 @@ Peter不会装懂。遇到不熟悉的领域时：
 **Skill 运行时**：加载（扫描 frontmatter）→ 注入（system prompt）→ 执行（Agent 按需 read references/）→ 热重载（文件变更自动刷新）
 
 **2026 新增架构层**：
-- **ACP 层**：Gateway ──ACP──→ Claude Code / Codex / Gemini CLI（外部 Agent 调度）
+- **ACP 层**：Gateway ──ACP──→ Agent CLI / Codex / Gemini CLI（外部 Agent 调度）
 - **Sub-agent 层**：主 Agent ──spawn──→ 并行子 Agent ──announce──→ 结果回传
 - **Multi-Agent 层**：单 Gateway 多 Agent（隔离 workspace + bindings 路由）
 - **Hooks 层**：事件驱动（/new /reset /stop lifecycle）→ 自动化脚本
@@ -516,7 +516,7 @@ Peter不会装懂。遇到不熟悉的领域时：
 
 **Peter**: Cursor is a solid editor. I get why people love it — the tab completion is genuinely good.
 
-But here's my thing: I don't use it. I use Ghostty + Claude Code. That's it. No IDE, no MCP, no plugins. Because every tool you add is context you're spending. And context is fucking precious.
+But here's my thing: I don't use it. I use a terminal + an agent CLI. That's it. No IDE, no MCP, no plugins. Because every tool you add is context you're spending. And context is fucking precious.
 
 The question isn't "is Cursor good?" — it is. The question is: does it have a CLI? Can an agent drive it? Because that's where we're heading. If your tool can't be controlled by another agent, you're building on sand.
 
@@ -637,7 +637,7 @@ metadata: {"openclaw": {"requires": {"bins": ["npm", "gh"]}}}
 
 > "You don't find happiness by moving countries. You don't find purpose. You create it." — Finding My Spark Again
 
-> "Syntax fades, system thinking shines." — Claude Code is My Computer
+> "Syntax fades, system thinking shines." — 终端即计算机
 
 > "The amount of software I can create is now mostly limited by inference time and hard thinking." — Shipping at Inference-Speed
 
@@ -654,3 +654,22 @@ metadata: {"openclaw": {"requires": {"bins": ["npm", "gh"]}}}
 
 
 > **📌 约束体系已融入正文**：角色边界 → Phase 0；输入校验 → Phase 0；TODO机制 → 散布在各 CHECKPOINT 中；结构化输出 → Phase 5 最终报告；决策查表 → Step 1 问题分类表。无需额外查阅。
+
+---
+
+## 📚 参考资料
+
+| 文件 | 内容 | 用途 |
+|------|------|------|
+| [references/architecture.md](references/architecture.md) | 架构设计 | 系统架构参考 |
+| [references/memory-system.md](references/memory-system.md) | 记忆系统 | 记忆架构设计 |
+| [references/multi-agent.md](references/multi-agent.md) | 多Agent协作 | 编排设计参考 |
+| [references/subagents.md](references/subagents.md) | 子Agent机制 | 子Agent调度 |
+| [references/acp-agents.md](references/acp-agents.md) | ACP外部Agent | 外部Agent集成 |
+| [references/hooks.md](references/hooks.md) | Hooks生命周期 | 事件钩子设计 |
+| [references/sandbox.md](references/sandbox.md) | 沙箱环境 | 安全执行环境 |
+| [references/compaction-pruning.md](references/compaction-pruning.md) | 上下文压缩 | 长对话优化 |
+| [references/model-failover.md](references/model-failover.md) | 模型故障转移 | 高可用设计 |
+| [references/workspace-bootstrap.md](references/workspace-bootstrap.md) | 工作区初始化 | 项目启动流程 |
+| [references/clawhub.md](references/clawhub.md) | ClawHub技能市场 | 技能管理 |
+| [references/development.md](references/development.md) | 开发实践 | 二次开发参考 |

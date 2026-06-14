@@ -2927,3 +2927,14 @@ def validate_all_shaders(shader_dir: str):
 ```
 
 > **📌 约束体系已融入正文**：角色边界 → Phase 0；输入校验 → Phase 0；TODO机制 → 散布在各 CHECKPOINT 中；结构化输出 → Phase 11 最终报告；决策查表 → 各模块内决策树。无需额外查阅。
+
+---
+
+## 📚 参考资料
+
+| 文件 | 内容 | 用途 |
+|------|------|------|
+| [references/rendering-pipeline.md](references/rendering-pipeline.md) | 渲染管线架构与技术栈选型 | 渲染决策参考 |
+| [references/pcg-workflow.md](references/pcg-workflow.md) | PCG程序化内容生成工作流 | PCG管线设计 |
+| [references/toolchain-dev.md](references/toolchain-dev.md) | 工具链开发（DCC插件/脚本） | 工具开发参考 |
+| [references/performance-optimization.md](references/performance-optimization.md) | 性能优化方法论 | 性能调优参考 |

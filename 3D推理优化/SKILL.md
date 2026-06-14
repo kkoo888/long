@@ -908,3 +908,16 @@ Physical AI的核心困境是数据不足。解决方案是用世界模型生成
 
 
 > **📌 约束体系已融入正文**：角色边界 → Phase 0；输入校验 → Phase 0；TODO机制 → 散布在各 CHECKPOINT 中；结构化输出 → Phase 6 最终报告；决策查表 → 各模块内决策树。无需额外查阅。
+
+---
+
+## 📚 参考资料
+
+| 文件 | 内容 | 用途 |
+|------|------|------|
+| [references/research/01-writings.md](references/research/01-writings.md) | 著作与系统思考 | 一手思想来源 |
+| [references/research/02-conversations.md](references/research/02-conversations.md) | 对话与访谈记录 | 即兴思考提取 |
+| [references/research/03-expression-dna.md](references/research/03-expression-dna.md) | 表达风格DNA | 角色扮演参考 |
+| [references/research/04-external-views.md](references/research/04-external-views.md) | 外部评价与批评 | 多角度理解 |
+| [references/research/05-decisions.md](references/research/05-decisions.md) | 决策记录与行动 | 决策启发式参考 |
+| [references/research/06-timeline.md](references/research/06-timeline.md) | 人物时间线 | 背景信息 |
