@@ -23,3 +23,4 @@ Babylon3D渲染	67.9	7	10	6	6	6	3	9	6	7	0	18
 2026-06-14T20:08	08cb667	python工程师	72.2	81.1	keep	D6资源	评分修正	dry_run
 2026-06-14T20:08	08cb667	Babylon3D渲染	67.9	77.7	keep	D6资源	添加references章节	dry_run
 2026-06-14T20:35	968557e	3D技术美术	73.6	84.0	keep	D5具体性	代码块+3(四层架构/权重验证/导出检查) + 技术反例8条 + tags	dry_run
+2026-06-14T20:41	round2	3D技术美术	84.0	90.9	keep	D8实测	baseline 4.7 vs skill 9.6 (+102%)	full_test
