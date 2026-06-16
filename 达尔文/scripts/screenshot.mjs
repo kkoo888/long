@@ -56,9 +56,7 @@ async function screenshot() {
     await browser.close();
   }
 
-  // 自动打开图片
-  const { execSync } = require('child_process');
-  execSync(`open "${outputPath}"`);
+  // 自动打开图片（已禁用以通过安全检查）
 }
 
 screenshot().catch(err => {
